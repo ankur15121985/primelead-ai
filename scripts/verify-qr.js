@@ -18,7 +18,7 @@ function makeClient() {
     return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
   }
   function csrf() {
-    return jar.get('lf_csrf') || '';
+    return jar.get('pl_csrf') || '';
   }
   return {
     async req(method, path, body) {
@@ -52,7 +52,7 @@ function check(name, cond, extra = '') {
   const owner = makeClient();
   console.log('1) Login as demo owner');
   await owner.req('GET', '/auth/me'); // prime CSRF cookie like a page load
-  const login = await owner.req('POST', '/auth/login', { email: 'owner@leadflow.demo', password: 'Demo@1234' });
+  const login = await owner.req('POST', '/auth/login', { email: 'owner@primelead.demo', password: 'Demo@1234' });
   check('login works', login.status === 200, `status ${login.status}`);
 
   console.log('\n2) Create a QR code');

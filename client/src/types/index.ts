@@ -11,6 +11,47 @@ export interface User {
   avatarUrl: string | null;
   emailVerified: boolean;
   isSuperAdmin?: boolean;
+  teamId?: string | null;
+  permissions?: string[];
+  mfaEnabled?: boolean;
+  createdAt: string;
+}
+
+export interface Role {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  permissions: string[];
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description: string | null;
+  memberCount: number;
+  members: Array<{ id: string; name: string; email: string; role: string }>;
+  createdAt: string;
+}
+
+export interface UserSession {
+  id: string;
+  deviceName: string;
+  ip: string | null;
+  userAgent: string | null;
+  lastUsedAt: string;
+  createdAt: string;
+  expiresAt: string;
+  current: boolean;
+}
+
+export interface LoginHistoryEntry {
+  success: boolean;
+  reason: string;
+  ip: string | null;
+  userAgent: string | null;
+  newDevice: boolean;
   createdAt: string;
 }
 

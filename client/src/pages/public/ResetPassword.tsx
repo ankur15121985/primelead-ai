@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export function ResetPassword() {
-  useSeo('Reset password — LeadFlow AI');
+  useSeo('Reset password — PRIMELEAD AI');
   const [params] = useSearchParams();
   const token = params.get('token') || '';
   const navigate = useNavigate();

@@ -7,6 +7,7 @@ import { prisma } from '../lib/prisma';
 import { hashPassword } from '../lib/passwords';
 import { createLead } from './leads';
 import { setOrgSetting } from './assignment';
+import { seedOrgRoles } from './rbac';
 
 export const DEFAULT_STAGES = [
   { name: 'New', color: '#3b82f6', order: 0, isWon: false, isLost: false },
@@ -19,6 +20,7 @@ export const DEFAULT_STAGES = [
 ];
 
 export async function ensureOrgBasics(orgId: string): Promise<void> {
+  await seedOrgRoles(orgId);
   const pipelineCount = await prisma.pipeline.count({ where: { orgId } });
   if (pipelineCount === 0) {
     const pipeline = await prisma.pipeline.create({

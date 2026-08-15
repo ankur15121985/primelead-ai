@@ -2,9 +2,15 @@
  * AI provider abstraction.
  *
  * The rest of the application never talks to a specific AI vendor. It only
- * depends on `generateText()`, so OpenAI, Anthropic, Gemini or any
- * OpenAI-compatible endpoint can be plugged in via environment variables.
+ * depends on `getAiProvider(orgId)`, so OpenAI, Anthropic, Gemini or any
+ * OpenAI-compatible endpoint can be plugged in via environment variables or
+ * per-org settings.
+ *
+ * SECURITY: providers are resolved PER ORGANISATION from the org's own
+ * settings (or the global env config) — an API key saved by org A is never
+ * used to serve org B's requests. There is no process-global override.
  */
+import { prisma } from '../lib/prisma';
 import { config } from '../config';
 
 export interface ChatMessage {
@@ -60,36 +66,57 @@ class OpenAICompatibleProvider implements AiProvider {
   }
 }
 
-let cached: AiProvider | null = null;
-
-/** Per-org override (e.g. an API key saved in org settings). Clears the cache. */
-export interface AiOverride {
+interface OrgAiSetting {
   apiKey?: string;
   baseUrl?: string;
   model?: string;
 }
 
-let override: AiOverride | null = null;
-
-export function setAiOverride(o: AiOverride | null): void {
-  override = o;
-  cached = null;
+/** Read the org's AI settings row (never exposes the key to clients). */
+async function orgAiSetting(orgId: string): Promise<OrgAiSetting | null> {
+  try {
+    const row = await prisma.orgSetting.findUnique({
+      where: { orgId_key: { orgId, key: 'ai' } },
+      select: { value: true, updatedAt: true },
+    });
+    if (!row?.value) return null;
+    const v = row.value as OrgAiSetting;
+    if (!v.apiKey) return null;
+    return v;
+  } catch {
+    return null;
+  }
 }
 
-/** Returns a configured provider, or null when no API key is set. */
-export function getAiProvider(): AiProvider | null {
-  const key = override?.apiKey || config.ai.apiKey;
+// Small per-org cache keyed by the effective config so repeat calls don't hit
+// the DB on every keystroke. A settings change alters the signature → miss.
+const cache = new Map<string, { sig: string; provider: AiProvider }>();
+
+function buildProvider(key: string, baseUrl: string, model: string): AiProvider {
+  return new OpenAICompatibleProvider(key, baseUrl, model);
+}
+
+/** Returns a provider for an org (env config used when the org has no key). */
+export async function getAiProvider(orgId?: string): Promise<AiProvider | null> {
+  const org = orgId ? await orgAiSetting(orgId) : null;
+  const key = org?.apiKey || config.ai.apiKey;
   if (!key) return null;
-  if (cached) return cached;
-  cached = new OpenAICompatibleProvider(
-    key,
-    override?.baseUrl || config.ai.baseUrl,
-    override?.model || config.ai.model || 'gpt-4o-mini'
-  );
-  return cached;
+
+  const baseUrl = org?.baseUrl || config.ai.baseUrl || '';
+  const model = org?.model || config.ai.model || 'gpt-4o-mini';
+  const sig = `${orgId || 'global'}|${key}|${baseUrl}|${model}`;
+
+  const hit = cache.get(sig);
+  if (hit) return hit.provider;
+
+  const provider = buildProvider(key, baseUrl, model);
+  // Bound the cache so an org changing keys many times can't leak memory.
+  if (cache.size > 500) cache.clear();
+  cache.set(sig, { sig, provider });
+  return provider;
 }
 
-/** True when the AI provider is configured and ready. */
-export function isAiConfigured(): boolean {
-  return Boolean(override?.apiKey || config.ai.apiKey);
+/** True when the AI provider is configured for this org (or globally). */
+export async function isAiConfigured(orgId?: string): Promise<boolean> {
+  return (await getAiProvider(orgId)) !== null;
 }

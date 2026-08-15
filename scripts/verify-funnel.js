@@ -17,7 +17,7 @@ function cookieHeader() {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
 }
 function csrf() {
-  return jar.get('lf_csrf') || '';
+  return jar.get('pl_csrf') || '';
 }
 
 async function req(method, path, body, form) {
@@ -50,7 +50,7 @@ function assert(cond, label, extra) {
 (async () => {
   const email = `funnel${Date.now()}@test.com`;
   console.log('== 0) prime CSRF cookie (page load) ==');
-  const prime = await req('GET', '/auth/me'); // 401 is fine — the middleware still issues lf_csrf
+  const prime = await req('GET', '/auth/me'); // 401 is fine — the middleware still issues pl_csrf
   assert(Boolean(csrf()), 'csrf cookie issued on page load');
 
   console.log('== 1) signup ==');

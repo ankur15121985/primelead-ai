@@ -4,7 +4,7 @@
  * Creates:
  *   - Three public pricing plans
  *   - A demo organization "Sharma Enterprises" with demo credentials:
- *       email:    owner@leadflow.demo
+ *       email:    owner@primelead.demo
  *       password: Demo@1234
  *   - Owner + 2 salespeople + a manager
  *   - Default pipeline + stages
@@ -13,6 +13,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { ensureOrgBasics, addSampleData, DEFAULT_STAGES } from '../src/services/onboarding';
+import { seedOrgRoles } from '../src/services/rbac';
 import { prisma } from '../src/lib/prisma';
 
 async function seedPlans() {
@@ -33,8 +34,8 @@ async function seedPlans() {
     {
       slug: 'growth',
       name: 'Growth',
-      priceMonthly: 1499,
-      priceYearly: 14990,
+      priceMonthly: 149900, // paise (₹1,499)
+      priceYearly: 1499000, // paise (₹14,990)
       features: [
         'Up to 10 users',
         '25,000 leads',
@@ -49,8 +50,8 @@ async function seedPlans() {
     {
       slug: 'business',
       name: 'Business',
-      priceMonthly: 3999,
-      priceYearly: 39990,
+      priceMonthly: 399900, // paise (₹3,999)
+      priceYearly: 3999000, // paise (₹39,990)
       features: [
         'Unlimited users',
         'Unlimited leads',
@@ -75,7 +76,7 @@ async function seedPlans() {
 }
 
 async function seedDemoOrg() {
-  const existing = await prisma.user.findFirst({ where: { email: 'owner@leadflow.demo' } });
+  const existing = await prisma.user.findFirst({ where: { email: 'owner@primelead.demo' } });
   if (existing) {
     // eslint-disable-next-line no-console
     console.log('✔ Demo org already exists — skipping');
@@ -95,7 +96,7 @@ async function seedDemoOrg() {
     data: {
       orgId: org.id,
       name: 'Rohit Sharma',
-      email: 'owner@leadflow.demo',
+      email: 'owner@primelead.demo',
       passwordHash: await bcrypt.hash('Demo@1234', 10),
       role: 'OWNER',
       title: 'Founder',
@@ -106,7 +107,7 @@ async function seedDemoOrg() {
     data: {
       orgId: org.id,
       name: 'Anita Desai',
-      email: 'manager@leadflow.demo',
+      email: 'manager@primelead.demo',
       passwordHash: await bcrypt.hash('Demo@1234', 10),
       role: 'MANAGER',
       title: 'Sales Manager',
@@ -116,7 +117,7 @@ async function seedDemoOrg() {
     data: {
       orgId: org.id,
       name: 'Karan Mehta',
-      email: 'karan@leadflow.demo',
+      email: 'karan@primelead.demo',
       passwordHash: await bcrypt.hash('Demo@1234', 10),
       role: 'SALES',
       title: 'Sales Executive',
@@ -126,7 +127,7 @@ async function seedDemoOrg() {
     data: {
       orgId: org.id,
       name: 'Pooja Singh',
-      email: 'pooja@leadflow.demo',
+      email: 'pooja@primelead.demo',
       passwordHash: await bcrypt.hash('Demo@1234', 10),
       role: 'SALES',
       title: 'Sales Executive',
@@ -134,6 +135,7 @@ async function seedDemoOrg() {
   });
 
   await ensureOrgBasics(org.id);
+  await seedOrgRoles(org.id);
   await addSampleData(org.id, owner.id);
 
   // sanity check stage names
@@ -150,7 +152,7 @@ async function seedDemoOrg() {
   });
 
   // eslint-disable-next-line no-console
-  console.log('✔ Demo org seeded: owner@leadflow.demo / Demo@1234');
+  console.log('✔ Demo org seeded: owner@primelead.demo / Demo@1234');
 }
 
 /** Demo QR campaign — idempotent, runs even if the demo org already exists. */
@@ -202,9 +204,9 @@ async function seedDemoBusiness(demoOrgId: string) {
       email: 'accounts@vikramrealty.in',
       phone: '9822001122',
       discount: 0,
-      gstSummary: { cgst: 180, sgst: 180, igst: 0 },
-      subtotal: 1000,
-      total: 1360,
+      gstSummary: { cgst: 18000, sgst: 18000, igst: 0 }, // paise
+      subtotal: 100000, // paise (₹1,000)
+      total: 136000, // paise (₹1,360)
       terms: 'Payment within 7 days of acceptance. GST extra as applicable.',
       validityDays: 15,
       status: 'SENT',
@@ -213,12 +215,12 @@ async function seedDemoBusiness(demoOrgId: string) {
           {
             description: 'Digital marketing campaign — monthly retainer',
             quantity: 1,
-            rate: 1000,
+            rate: 100000, // paise (₹1,000)
             taxPct: 18,
-            cgst: 90,
-            sgst: 90,
+            cgst: 9000, // paise
+            sgst: 9000, // paise
             igst: 0,
-            amount: 1180,
+            amount: 118000, // paise (₹1,180)
           },
         ],
       },
@@ -236,10 +238,10 @@ async function seedDemoBusiness(demoOrgId: string) {
       billingAddress: 'MG Road, Pune, Maharashtra',
       gstin: '27AABCV1234F1Z5',
       discount: 0,
-      gstSummary: { cgst: 180, sgst: 180, igst: 0 },
-      subtotal: 1000,
-      total: 1360,
-      paidAmount: 1360,
+      gstSummary: { cgst: 18000, sgst: 18000, igst: 0 }, // paise
+      subtotal: 100000, // paise (₹1,000)
+      total: 136000, // paise (₹1,360)
+      paidAmount: 136000, // paise (₹1,360)
       status: 'PAID',
       dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
       terms: 'Thank you for your business!',
@@ -249,12 +251,12 @@ async function seedDemoBusiness(demoOrgId: string) {
             description: 'Digital marketing campaign — monthly retainer',
             hsnSac: '9983',
             quantity: 1,
-            rate: 1000,
+            rate: 100000, // paise (₹1,000)
             taxPct: 18,
-            cgst: 90,
-            sgst: 90,
+            cgst: 9000, // paise
+            sgst: 9000, // paise
             igst: 0,
-            amount: 1180,
+            amount: 118000, // paise (₹1,180)
           },
         ],
       },

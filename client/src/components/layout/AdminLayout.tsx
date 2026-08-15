@@ -31,7 +31,7 @@ export function AdminLayout() {
             <ShieldCheck className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-extrabold text-white">LeadFlow Admin</p>
+            <p className="text-sm font-extrabold text-white">PRIMELEAD Admin</p>
             <p className="text-[11px] text-slate-400">Website operations</p>
           </div>
         </div>
@@ -73,7 +73,7 @@ export function AdminLayout() {
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500 text-slate-950">
             <ShieldCheck className="h-4 w-4" />
           </span>
-          <span className="text-sm font-bold text-white">LeadFlow Admin</span>
+          <span className="text-sm font-bold text-white">PRIMELEAD Admin</span>
           <nav className="ml-auto flex items-center gap-1" aria-label="Admin (mobile)">
             {NAV.map((item) => (
               <NavLink

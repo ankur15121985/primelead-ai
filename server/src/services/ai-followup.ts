@@ -43,12 +43,13 @@ const LANGUAGE_PROMPTS: Record<Language, string> = {
   hinglish: 'Write the message in Hinglish (Hindi written in Roman script, mixed with English).',
 };
 
-export function isAiReady(): boolean {
-  return getAiProvider() !== null;
+/** True when AI is configured for this org (or globally). */
+export async function isAiReady(orgId?: string): Promise<boolean> {
+  return (await getAiProvider(orgId)) !== null;
 }
 
-export async function writeFollowUp(ctx: FollowUpContext): Promise<{ message: string; subject?: string }> {
-  const provider = getAiProvider();
+export async function writeFollowUp(ctx: FollowUpContext, orgId?: string): Promise<{ message: string; subject?: string }> {
+  const provider = await getAiProvider(orgId);
   if (!provider) {
     throw Object.assign(new Error('AI is not configured. Add an API key in Settings to enable AI follow-ups.'), {
       status: 503,

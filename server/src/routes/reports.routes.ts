@@ -8,9 +8,10 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, ok } from '../lib/http';
-import { requireAuth, scopedWhere, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, scopedWhere, type AuthedRequest } from '../middleware/auth';
 import { sourceLabel } from '../constants';
 import { csvEscape } from '../services/leads';
+import { paiseToRupees } from '../lib/money';
 
 const router = Router();
 router.use(requireAuth);
@@ -44,6 +45,7 @@ function fillDays(from: Date, to: Date, points: Array<{ day: string; count: numb
 
 router.get(
   '/',
+  requirePermission('reports.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const q = req.query as Record<string, string>;
@@ -132,10 +134,10 @@ router.get(
         tasksDone,
         tasksMissed,
         quotationsCount,
-        quotationValue: quotationValue._sum.total || 0,
+        quotationValue: paiseToRupees(quotationValue._sum.total || 0),
         invoicesCount,
-        invoiceValue: invoiceValue._sum.total || 0,
-        revenue: revenue._sum.total || 0,
+        invoiceValue: paiseToRupees(invoiceValue._sum.total || 0),
+        revenue: paiseToRupees(revenue._sum.total || 0),
         activityCount,
       },
       charts: {
@@ -151,6 +153,7 @@ router.get(
 
 router.get(
   '/export',
+  requirePermission('reports.export'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const q = req.query as Record<string, string>;

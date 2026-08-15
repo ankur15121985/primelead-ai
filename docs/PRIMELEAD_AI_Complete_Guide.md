@@ -1,4 +1,4 @@
-# LeadFlow AI — Complete User & Admin Guide
+# PRIMELEAD AI — Complete User & Admin Guide
 
 **AI-powered CRM & Lead Management for Indian Businesses**
 
@@ -35,9 +35,9 @@
 
 ## 1. Introduction
 
-### What is LeadFlow AI?
+### What is PRIMELEAD AI?
 
-LeadFlow AI is a **production-style SaaS CRM** designed specifically for Indian businesses. It combines:
+PRIMELEAD AI is a **production-style SaaS CRM** designed specifically for Indian businesses. It combines:
 
 - A **premium marketing website** with professional landing pages
 - A **fully working multi-tenant CRM** for lead management
@@ -113,10 +113,10 @@ Open **http://localhost:5173** in your browser.
 
 | Role | Email | Password |
 |------|-------|----------|
-| Owner | owner@leadflow.demo | Demo@1234 |
-| Manager | manager@leadflow.demo | Demo@1234 |
-| Salesperson | karan@leadflow.demo | Demo@1234 |
-| Salesperson | pooja@leadflow.demo | Demo@1234 |
+| Owner | owner@primelead.demo | Demo@1234 |
+| Manager | manager@primelead.demo | Demo@1234 |
+| Salesperson | karan@primelead.demo | Demo@1234 |
+| Salesperson | pooja@primelead.demo | Demo@1234 |
 
 ---
 
@@ -175,7 +175,7 @@ The homepage features:
 **Security Features:**
 - Rate limiting: 5 login attempts per 10 minutes per IP
 - Passwords hashed with bcrypt (10 rounds)
-- JWT stored in httpOnly cookie (`lf_session`)
+- JWT stored in httpOnly cookie (`pl_session`)
 - CSRF protection on all state-changing requests
 
 ### 3.4 Password Reset
@@ -1271,7 +1271,7 @@ kill -9 <PID>
 
 **Document Version:** 1.0
 **Last Updated:** August 10, 2026
-**Application Version:** LeadFlow AI v0.1.0
+**Application Version:** PRIMELEAD AI v0.1.0
 
 *For developer documentation, see [DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)*
 *For API reference, see [API.md](../API.md)*

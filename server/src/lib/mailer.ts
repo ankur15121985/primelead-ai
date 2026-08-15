@@ -43,9 +43,9 @@ export async function sendMail({ to, subject, html, text }: MailInput): Promise<
 export function layoutMail(title: string, contentHtml: string): string {
   return `
   <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px">
-    <div style="font-size:20px;font-weight:800;color:#0f172a">LeadFlow <span style="color:#6366f1">AI</span></div>
+    <div style="font-size:20px;font-weight:800;color:#0f172a">PRIMELEAD <span style="color:#6366f1">AI</span></div>
     <h1 style="font-size:18px;color:#0f172a;margin:20px 0 8px">${title}</h1>
     <div style="color:#475569;line-height:1.6;font-size:14px">${contentHtml}</div>
-    <p style="color:#94a3b8;font-size:12px;margin-top:28px">You received this because you use LeadFlow AI. If this wasn't you, you can safely ignore this email.</p>
+    <p style="color:#94a3b8;font-size:12px;margin-top:28px">You received this because you use PRIMELEAD AI. If this wasn't you, you can safely ignore this email.</p>
   </div>`;
 }

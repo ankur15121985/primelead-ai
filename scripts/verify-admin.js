@@ -18,7 +18,7 @@ function makeClient() {
     return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
   }
   function csrf() {
-    return jar.get('lf_csrf') || '';
+    return jar.get('pl_csrf') || '';
   }
   return {
     async req(method, path, body) {
@@ -51,7 +51,7 @@ function check(name, cond, extra = '') {
   const owner = makeClient();
   console.log('1) Login as demo owner (listed in SUPER_ADMIN_EMAILS)');
   await owner.req('GET', '/auth/me');
-  const login = await owner.req('POST', '/auth/login', { email: 'owner@leadflow.demo', password: 'Demo@1234' });
+  const login = await owner.req('POST', '/auth/login', { email: 'owner@primelead.demo', password: 'Demo@1234' });
   check('login works', login.status === 200, `status ${login.status}`);
 
   console.log('\n2) /auth/me exposes isSuperAdmin');
@@ -92,20 +92,20 @@ function check(name, cond, extra = '') {
 
   console.log('\n8) Suspend → block login → re-activate');
   const csrfSuspend = await owner.req('GET', '/auth/me');
-  const token = owner.jar.get('lf_csrf') || '';
+  const token = owner.jar.get('pl_csrf') || '';
   const suspended = await owner.req('PATCH', `/admin/orgs/${demoOrg.id}`, { status: 'SUSPENDED' });
   check('suspend succeeds', suspended.status === 200 && suspended.json?.data?.org?.status === 'SUSPENDED');
 
   // A regular user of the suspended org is blocked…
   const stranger = makeClient();
   await stranger.req('GET', '/auth/me');
-  const blocked = await stranger.req('POST', '/auth/login', { email: 'karan@leadflow.demo', password: 'Demo@1234' });
+  const blocked = await stranger.req('POST', '/auth/login', { email: 'karan@primelead.demo', password: 'Demo@1234' });
   check('regular user of suspended org cannot log in', blocked.status === 403, `status ${blocked.status}`);
 
   // …while the super-admin still can (never locked out of the admin panel)
   const stranger2 = makeClient();
   await stranger2.req('GET', '/auth/me');
-  const adminStillIn = await stranger2.req('POST', '/auth/login', { email: 'owner@leadflow.demo', password: 'Demo@1234' });
+  const adminStillIn = await stranger2.req('POST', '/auth/login', { email: 'owner@primelead.demo', password: 'Demo@1234' });
   check('super-admin can still log in while org suspended', adminStillIn.status === 200, `status ${adminStillIn.status}`);
 
   await owner.req('GET', '/auth/me'); // fresh CSRF (rotated on every /me)

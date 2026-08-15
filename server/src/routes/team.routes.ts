@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, conflict, notFound, ok, validate } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { assertAdminOrAbove, assertManagerOrAbove } from '../middleware/auth';
 import { hashPassword } from '../lib/passwords';
 import { randomToken, hashToken } from '../lib/crypto';
@@ -10,7 +10,8 @@ import { audit } from '../lib/audit';
 import { config } from '../config';
 import { publicUser } from '../lib/serializers';
 import { teamInviteSchema, teamUpdateSchema } from '../validators/schemas';
-import { canManage, ROLES } from '../constants';
+import { canManage } from '../constants';
+import { orgRoles } from '../services/rbac';
 
 const router = Router();
 
@@ -38,6 +39,10 @@ router.post(
     if (!canManage(user.role as any, input.role as any)) {
       return badRequest('You cannot create a user with this role.');
     }
+    const roles = await orgRoles(user.orgId);
+    if (!roles.some((r) => r.key === input.role)) {
+      throw badRequest('That role does not exist in this organisation.');
+    }
     const email = input.email.toLowerCase();
     const exists = await prisma.user.findUnique({ where: { orgId_email: { orgId: user.orgId, email } } });
     if (exists) throw conflict('A team member with this email already exists.');
@@ -61,10 +66,10 @@ router.post(
       const link = `${config.appUrl}/reset-password?token=${token}`;
       await sendMail({
         to: email,
-        subject: `You've been added to a team on LeadFlow AI`,
+        subject: `You've been added to a team on PRIMELEAD AI`,
         html: layoutMail(
           'Set your password',
-          `<p>Hi ${input.name}, you've been added as a ${input.role.toLowerCase()} on LeadFlow AI.</p>
+          `<p>Hi ${input.name}, you've been added as a ${input.role.toLowerCase()} on PRIMELEAD AI.</p>
            <p><a href="${link}" style="background:#4f46e5;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;display:inline-block">Set your password</a></p>
            <p style="color:#94a3b8;font-size:12px">Or open: ${link} (valid for 72 hours)</p>`
         ),
@@ -78,6 +83,7 @@ router.post(
 router.patch(
   '/:id',
   requireAuth,
+  requirePermission('users.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(teamUpdateSchema, req.body);
@@ -92,7 +98,19 @@ router.patch(
     if (input.role && target.role === 'OWNER') {
       throw badRequest('The owner role cannot be changed.');
     }
+    if (input.role) {
+      const roles = await orgRoles(user.orgId);
+      if (!roles.some((r) => r.key === input.role)) {
+        throw badRequest('That role does not exist in this organisation.');
+      }
+    }
     assertAdminOrAbove(user);
+
+    // teamId must belong to the organisation
+    if (input.teamId) {
+      const team = await prisma.team.findFirst({ where: { id: input.teamId, orgId: user.orgId } });
+      if (!team) throw badRequest('That team does not exist in this organisation.');
+    }
 
     const updated = await prisma.user.update({
       where: { id: target.id },
@@ -100,6 +118,7 @@ router.patch(
         ...(input.role ? { role: input.role } : {}),
         ...(input.active !== undefined ? { active: input.active } : {}),
         ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.teamId !== undefined ? { teamId: input.teamId || null } : {}),
       },
     });
     await audit({ orgId: user.orgId, userId: user.id, action: 'USER_UPDATED', entity: 'User', entityId: target.id, metadata: input });
@@ -110,6 +129,7 @@ router.patch(
 router.delete(
   '/:id',
   requireAuth,
+  requirePermission('users.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const target = await prisma.user.findFirst({ where: { id: req.params.id, orgId: user.orgId } });

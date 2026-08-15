@@ -37,6 +37,7 @@ export function publicUser(user: User) {
     phone: user.phone,
     role: user.role,
     title: user.title,
+    teamId: user.teamId,
     active: user.active,
     avatarUrl: user.avatarUrl,
     emailVerified: Boolean(user.emailVerifiedAt),

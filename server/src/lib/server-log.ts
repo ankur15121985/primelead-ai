@@ -13,6 +13,7 @@ export interface LogEntry {
   message: string;
   status: number;
   code: string;
+  requestId?: string;
 }
 
 const MAX_ENTRIES = 50;

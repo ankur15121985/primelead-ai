@@ -3,7 +3,7 @@ import multer from 'multer';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, notFound, ok, validate } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { scopedWhere } from '../middleware/auth';
 import { audit } from '../lib/audit';
 import { notify } from '../lib/serializers';
@@ -13,7 +13,9 @@ import {
   createLead,
   leadsToCsv,
   normalizePhone,
+  serializeLead,
 } from '../services/leads';
+import { rupeesToPaise, paiseToRupees } from '../lib/money';
 import { recordAssignment } from '../services/assignment';
 import { createFollowUp, completeFollowUp } from '../services/followups';
 import { isManagerOrAbove, assertManagerOrAbove } from '../middleware/auth';
@@ -33,6 +35,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
 router.get(
   '/',
   requireAuth,
+  requirePermission('leads.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const q = req.query as Record<string, string>;
@@ -48,7 +51,7 @@ router.get(
       ownerId: q.ownerId,
       stageId: q.stageId,
       priority: q.priority,
-      minValue: q.minValue ? Number(q.minValue) : undefined,
+      minValue: q.minValue ? rupeesToPaise(Number(q.minValue)) : undefined,
       from: q.from,
       to: q.to,
     });
@@ -82,7 +85,7 @@ router.get(
     ]);
 
     return ok(res, {
-      rows,
+      rows: rows.map(serializeLead),
       pagination: { page, pageSize, total, pages: Math.max(1, Math.ceil(total / pageSize)) },
       counts: { new: newCount, open: openCount, won: wonCount, overdue: overdueCount },
     });
@@ -93,6 +96,7 @@ router.get(
 router.get(
   '/export',
   requireAuth,
+  requirePermission('leads.export'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const q = req.query as Record<string, string>;
@@ -120,7 +124,7 @@ router.get(
         status: r.status,
         owner: r.owner?.name,
         score: r.score,
-        expectedValue: r.expectedValue,
+        expectedValue: paiseToRupees(r.expectedValue),
         nextFollowUpAt: r.nextFollowUpAt?.toISOString(),
         createdAt: r.createdAt.toISOString(),
       }))
@@ -135,6 +139,7 @@ router.get(
 router.post(
   '/import',
   requireAuth,
+  requirePermission('leads.create'),
   upload.single('file'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
@@ -195,6 +200,7 @@ router.post(
 router.post(
   '/',
   requireAuth,
+  requirePermission('leads.create'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(leadCreateSchema, req.body);
@@ -214,7 +220,7 @@ router.post(
       email: (input.email as string) || null,
       nextFollowUpAt: input.nextFollowUpAt ? new Date(input.nextFollowUpAt) : null,
     });
-    return ok(res, { lead }, 201);
+    return ok(res, { lead: serializeLead(lead) }, 201);
   })
 );
 
@@ -222,6 +228,7 @@ router.post(
 router.post(
   '/bulk',
   requireAuth,
+  requirePermission('leads.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(leadBulkSchema, req.body);
@@ -283,6 +290,7 @@ router.post(
 router.get(
   '/:id',
   requireAuth,
+  requirePermission('leads.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const lead = await prisma.lead.findFirst({
@@ -299,7 +307,7 @@ router.get(
     if (!lead) throw notFound('Lead not found');
     // salespeople can only view their own leads
     if (user.role === 'SALES' && lead.ownerId !== user.id) throw notFound('Lead not found');
-    return ok(res, { lead });
+    return ok(res, { lead: serializeLead(lead) });
   })
 );
 
@@ -307,6 +315,7 @@ router.get(
 router.patch(
   '/:id',
   requireAuth,
+  requirePermission('leads.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(leadUpdateSchema, req.body);
@@ -331,7 +340,7 @@ router.patch(
     if (input.company !== undefined) data.company = input.company || null;
     if (input.notes !== undefined) data.notes = input.notes || null;
     if (input.priority !== undefined) { data.priority = input.priority; activityNotes.push(`Priority → ${input.priority}`); }
-    if (input.expectedValue !== undefined) data.expectedValue = input.expectedValue;
+    if (input.expectedValue !== undefined) data.expectedValue = rupeesToPaise(input.expectedValue);
     if (input.source !== undefined) data.source = input.source;
     if (input.campaignName !== undefined) data.campaignName = input.campaignName || null;
     if (input.phone !== undefined) data.phone = normalizePhone((input.phone as string) || null);
@@ -363,10 +372,10 @@ router.patch(
 
     if (input.status !== undefined) data.status = input.status;
 
-    // Recompute score
+    // Recompute score (thresholds are in rupees)
     const nextScore = computeLeadScore({
       priority: (input.priority as any) || existing.priority,
-      expectedValue: input.expectedValue ?? existing.expectedValue,
+      expectedValue: input.expectedValue ?? paiseToRupees(existing.expectedValue),
       hasEmail: Boolean(input.email ?? existing.email),
       notes: Boolean(input.notes ?? existing.notes),
     });
@@ -408,7 +417,7 @@ router.patch(
       });
     }
 
-    return ok(res, { lead: updated });
+    return ok(res, { lead: serializeLead(updated) });
   })
 );
 
@@ -416,6 +425,7 @@ router.patch(
 router.delete(
   '/:id',
   requireAuth,
+  requirePermission('leads.delete'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);
@@ -431,6 +441,7 @@ router.delete(
 router.post(
   '/:id/activity',
   requireAuth,
+  requirePermission('leads.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(activityCreateSchema, req.body);
@@ -463,6 +474,7 @@ router.post(
 router.post(
   '/:id/tasks',
   requireAuth,
+  requirePermission('tasks.create'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(taskCreateSchema, req.body);
@@ -486,6 +498,7 @@ router.post(
 router.post(
   '/tasks/:taskId/complete',
   requireAuth,
+  requirePermission('tasks.complete'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     await completeFollowUp(req.params.taskId, user.orgId, user.id);

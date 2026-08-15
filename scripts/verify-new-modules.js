@@ -31,7 +31,7 @@ function csrfToken() {
   // last value wins (same dedup as cookieHeader)
   let val = '';
   for (const l of readCookies().split('\n').filter(Boolean)) {
-    if (l.startsWith('lf_csrf=')) val = l.replace('lf_csrf=', '');
+    if (l.startsWith('pl_csrf=')) val = l.replace('pl_csrf=', '');
   }
   return val;
 }
@@ -60,8 +60,8 @@ async function main() {
   if (fs.existsSync(JAR)) fs.rmSync(JAR, { force: true });
   // 1) login as owner
   let r = await api('GET', '/api/auth/me');
-  r = await api('POST', '/api/auth/login', { email: 'owner@leadflow.demo', password: 'Demo@1234' }, { 'x-csrf-token': csrfToken() });
-  check('login as owner@leadflow.demo', r.status === 200, `status ${r.status}`);
+  r = await api('POST', '/api/auth/login', { email: 'owner@primelead.demo', password: 'Demo@1234' }, { 'x-csrf-token': csrfToken() });
+  check('login as owner@primelead.demo', r.status === 200, `status ${r.status}`);
 
   // 2) quotations list (seeded demo)
   r = await api('GET', '/api/quotations');

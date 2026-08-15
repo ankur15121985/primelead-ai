@@ -3,6 +3,7 @@ import { conflict, badRequest } from '../lib/http';
 import { computeLeadScore, sourceLabel, type Priority } from '../constants';
 import { assignLeadOwner, recordAssignment } from './assignment';
 import { notify } from '../lib/serializers';
+import { rupeesToPaise, paiseToRupees } from '../lib/money';
 
 export interface CreateLeadInput {
   orgId: string;
@@ -77,7 +78,9 @@ export async function createLead(input: CreateLeadInput) {
 
   const source = input.source || 'MANUAL';
   const priority: Priority = (input.priority as Priority) || 'MEDIUM';
-  const expectedValue = input.expectedValue || 0;
+  // API boundary: expectedValue arrives in rupees and is stored as paise.
+  const expectedValueRupees = input.expectedValue || 0;
+  const expectedValue = rupeesToPaise(expectedValueRupees);
 
   let ownerId = input.ownerId || null;
   let assignmentMode: string | null = null;
@@ -90,7 +93,7 @@ export async function createLead(input: CreateLeadInput) {
 
   const score = computeLeadScore({
     priority,
-    expectedValue,
+    expectedValue: expectedValueRupees,
     hasEmail: Boolean(nEmail),
     notes: Boolean(input.notes),
   });
@@ -229,6 +232,11 @@ export function leadsToCsv(rows: Array<Record<string, unknown>>): string {
       .join(',')
   );
   return [header.join(','), ...lines].join('\r\n');
+}
+
+/** Convert a lead row for API responses (paise → rupees). */
+export function serializeLead<T extends { expectedValue: number }>(row: T): T {
+  return { ...row, expectedValue: paiseToRupees(row.expectedValue) };
 }
 
 export { normalizePhone, normalizeEmail };

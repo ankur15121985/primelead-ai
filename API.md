@@ -1,10 +1,12 @@
-# LeadFlow AI — API Reference
+# PRIMELEAD AI — API Reference
 
 Base URL: `http://localhost:4000/api` (dev). The web dev server proxies `/api` to it.
 
-- **Auth:** session cookie `lf_session` (httpOnly, SameSite=Lax). All authenticated routes require it.
-- **CSRF:** every **state-changing** request must include the token from the readable `lf_csrf` cookie in the `x-csrf-token` header. The client SPA does this automatically. (Without it you get `403 CSRF`.)
-- **Response envelope:** success → `200/201 { "data": ... }` · error → `{ "error": { "code", "message", "details? } }`
+- **Auth:** session cookie `pl_session` (httpOnly, SameSite=Lax). All authenticated routes require it. Sessions are **DB-backed and revocable** — the server stores only a SHA-256 hash of the opaque token.
+- **CSRF:** every **state-changing** request must include the token from the readable `pl_csrf` cookie in the `x-csrf-token` header. The client SPA does this automatically. (Without it you get `403 CSRF`.)
+- **Request IDs:** every response carries an `X-Request-Id` header; the same id appears in the error body (`requestId`) and the server log.
+- **Money:** the JSON boundary uses **rupees**; the database stores **integer paise**. Never send or read floats for money beyond the API boundary.
+- **Response envelope:** success → `200/201 { "data": ... }` · error → `{ "error": { "code", "message", "requestId", "details? } }`
 
 Error codes: `UNAUTHORIZED` (401) · `FORBIDDEN` (403) · `NOT_FOUND` (404) · `CONFLICT` (409) · `VALIDATION_ERROR` (422) · `RATE_LIMITED` (429) · `INTERNAL` (500) · `PAYLOAD_TOO_LARGE` (413) · `CSRF` (403).
 
@@ -20,13 +22,49 @@ Create an organisation + owner account. Sets the session cookie. Sends a verific
 ```
 → `201 { data: { user, org } }`
 
-### `POST /auth/login` (rate limited: 5/10min per IP)
+### `POST /auth/login` (rate limited: 5/10min per IP; account locks after `LOGIN_MAX_ATTEMPTS` failures)
 `{ "email", "password" }` → `200 { data: { user, org } }`
+
+If the account has **MFA enabled**, the login returns a challenge instead:
+
+```json
+200 { "data": { "mfaRequired": true, "mfaToken": "<short-lived JWT, 10 min>" } }
+```
+
+### `POST /auth/mfa/verify` (rate limited)
+Complete a challenged login with a TOTP code. `{ "mfaToken", "code" }` → `200 { data: { user, org } }` (sets the session cookie).
+
+### `POST /auth/mfa/recovery` (rate limited)
+Complete a challenged login with a single-use recovery code (dashes optional). `{ "mfaToken", "code" }` → `200 { data: { user, org } }`
+
+### `POST /auth/mfa/setup` (authenticated)
+Begin MFA setup. `{ "password" }` (current password) → `200 { data: { secret, otpauthUrl, qrDataUrl } }`
+
+### `POST /auth/mfa/confirm` (authenticated)
+Enable MFA + issue 10 single-use recovery codes (shown once, in plaintext). `{ "secret", "code" }` → `200 { data: { enabled, recoveryCodes[] } }`
+
+### `POST /auth/mfa/disable` (authenticated)
+`{ "password", "code" }` (current password + a valid TOTP **or** recovery code) → `200 { data: { disabled } }`
+
+### `GET /auth/sessions` (authenticated)
+My active devices → `200 { data: { sessions: [{ id, deviceName, ip, lastUsedAt, current }] } }`
+
+### `POST /auth/sessions/:id/revoke` (authenticated)
+Sign out one device → `200 { data: { revoked } }`
+
+### `POST /auth/sessions/revoke-others` (authenticated)
+Sign out every device except the current one → `200 { data: { revoked: count } }`
+
+### `GET /auth/login-history` (authenticated)
+My recent sign-ins → `200 { data: { history: [{ success, reason, ip, userAgent, newDevice, createdAt }] } }`
+
+### `POST /auth/change-password` (authenticated)
+`{ "currentPassword", "newPassword" }` — revokes **every other** session → `200 { data: { changed } }`
 
 ### `POST /auth/logout` → `200 { data: { loggedOut: true } }`
 
 ### `GET /auth/me`
-Current user + org + refreshes the CSRF cookie. → `200 { data: { user, org, csrf } }`
+Current user + org + permissions + `mfaEnabled`. → `200 { data: { user, org, csrf } }`
 
 ### `POST /auth/verify-email`
 `{ "token" }` → `200 { data: { verified: true } }`
@@ -35,10 +73,38 @@ Current user + org + refreshes the CSRF cookie. → `200 { data: { user, org, cs
 `{ "email" }` → always `200 { data: { sent: true } }` (no user enumeration).
 
 ### `POST /auth/reset-password`
-`{ "token", "password" }` (token valid 1 hour, single use) → `200`.
+`{ "token", "password" }` (token valid 1 hour, single use; revokes all sessions) → `200`.
 
 ### `POST /auth/onboarding` (authenticated)
 `{ "businessType"?, "addSampleData"?: bool, "inviteEmails"?: string[] }` → `200 { data: { onboardingComplete, sampleCount } }`
+
+---
+
+## Roles & teams
+
+### `GET /roles` (authenticated)
+The org's roles + the full permission catalog → `200 { data: { roles: [{ id, key, name, description, isSystem, permissions[] }], catalog: string[] } }`
+
+### `POST /roles` (`roles.manage`)
+Create a custom role. `{ "name", "description"?, "permissions": string[] }` → `201 { data: { role } }`
+
+### `PATCH /roles/:id` (`roles.manage`)
+Rename / re-permission a custom role (the Owner role cannot be edited). `{ "name"?, "description"?, "permissions"? }`
+
+### `DELETE /roles/:id` (`roles.manage`)
+Delete a custom role (must not be assigned to anyone). → `200 { data: { deleted } }`
+
+### `GET /teams` (authenticated)
+`200 { data: { teams: [{ id, name, description, memberCount, members[] }] } }`
+
+### `POST /teams` (`teams.manage`)
+`{ "name", "description"? }` → `201 { data: { team } }`
+
+### `PATCH /teams/:id` (`teams.manage`)
+Rename / re-describe. `{ "name"?, "description"? }`
+
+### `DELETE /teams/:id` (`teams.manage`)
+Delete a team — members are unassigned (`teamId` → null), never removed. → `200 { data: { deleted } }`
 
 ---
 

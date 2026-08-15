@@ -2,41 +2,43 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { calculateTax } from './gst';
 import { computeLeadScore } from '../constants';
 
+// The GST engine works in INTEGER paise (₹×100); the API boundary converts
+// rupees → paise on input and paise → rupees on output.
 describe('GST calculation', () => {
   it('computes CGST+SGST split correctly for intra-state 18%', () => {
-    const r = calculateTax([{ description: 'Item', quantity: 2, rate: 1000, taxPct: 18 }]);
-    expect(r.subtotal).toBe(2000);
-    expect(r.cgst).toBe(180);
-    expect(r.sgst).toBe(180);
+    const r = calculateTax([{ description: 'Item', quantity: 2, rate: 100000, taxPct: 18 }]); // ₹1,000
+    expect(r.subtotal).toBe(200000);
+    expect(r.cgst).toBe(18000);
+    expect(r.sgst).toBe(18000);
     expect(r.igst).toBe(0);
-    expect(r.total).toBe(2360);
+    expect(r.total).toBe(236000);
   });
 
   it('computes IGST for inter-state', () => {
-    const r = calculateTax([{ description: 'Item', quantity: 1, rate: 5000, taxPct: 18, gstType: 'IGST' }]);
-    expect(r.igst).toBe(900);
+    const r = calculateTax([{ description: 'Item', quantity: 1, rate: 500000, taxPct: 18, gstType: 'IGST' }]);
+    expect(r.igst).toBe(90000);
     expect(r.cgst).toBe(0);
     expect(r.sgst).toBe(0);
-    expect(r.total).toBe(5900);
+    expect(r.total).toBe(590000);
   });
 
   it('applies per-item discount before tax', () => {
-    const r = calculateTax([{ description: 'Item', quantity: 1, rate: 1000, discountPct: 10, taxPct: 18 }]);
-    expect(r.subtotal).toBe(900);
-    expect(r.total).toBe(1062);
+    const r = calculateTax([{ description: 'Item', quantity: 1, rate: 100000, discountPct: 10, taxPct: 18 }]);
+    expect(r.subtotal).toBe(90000);
+    expect(r.total).toBe(106200);
   });
 
   it('applies document-level discount', () => {
-    const r = calculateTax([{ description: 'A', quantity: 1, rate: 1000, taxPct: 5 }], 100);
-    expect(r.subtotal).toBe(1000);
-    expect(r.discount).toBe(100);
-    expect(r.total).toBe(900 + 50);
+    const r = calculateTax([{ description: 'A', quantity: 1, rate: 100000, taxPct: 5 }], 10000);
+    expect(r.subtotal).toBe(100000);
+    expect(r.discount).toBe(10000);
+    expect(r.total).toBe(90000 + 5000);
   });
 
   it('rounds to paise', () => {
-    const r = calculateTax([{ description: 'A', quantity: 3, rate: 99.99, taxPct: 18 }]);
-    expect(r.subtotal).toBe(299.97);
-    expect(r.total).toBeCloseTo(353.96, 2);
+    const r = calculateTax([{ description: 'A', quantity: 3, rate: 9999, taxPct: 18 }]); // ₹99.99
+    expect(r.subtotal).toBe(29997);
+    expect(r.total).toBe(35396); // 29997 + round(29997*18/100)=5399 → 35396 paise = ₹353.96
   });
 });
 

@@ -15,6 +15,7 @@ import { prisma } from '../lib/prisma';
 import { getAiProvider } from '../ai/provider';
 import { OPEN_STATUSES } from '../constants';
 import { sourceLabel } from '../constants';
+import { paiseToRupees } from '../lib/money';
 import type { ChatMessage } from '../ai/provider';
 
 export const AI_CHAT_ERROR = Object.assign(new Error('AI is not configured. Add an API key in Settings to enable the AI assistant.'), {
@@ -96,7 +97,7 @@ export async function buildContext(ctx: ChatContext, question: string): Promise<
     take: 5,
     select: { name: true, expectedValue: true, status: true, phone: true },
   });
-  const bigLines = bigLeads.map((l) => `${l.name} (${l.status}, ${inr(l.expectedValue)})`).join('; ');
+  const bigLines = bigLeads.map((l) => `${l.name} (${l.status}, ${inr(paiseToRupees(l.expectedValue))})`).join('; ');
 
   const questionLow = question.toLowerCase();
 
@@ -111,7 +112,7 @@ export async function buildContext(ctx: ChatContext, question: string): Promise<
     });
     recentLines = recent.length
       ? 'RECENT LEADS: ' +
-        recent.map((l) => `${l.name}${l.phone ? ` (${l.phone})` : ''} — ${sourceLabel(l.source)}, ${l.status}, ${inr(l.expectedValue)}`).join('; ')
+        recent.map((l) => `${l.name}${l.phone ? ` (${l.phone})` : ''} — ${sourceLabel(l.source)}, ${l.status}, ${inr(paiseToRupees(l.expectedValue))}`).join('; ')
       : 'No recent leads.';
   }
   if (/(follow.?up|overdue|due|pending|tasks|todo)/.test(questionLow)) {
@@ -151,14 +152,14 @@ export async function buildContext(ctx: ChatContext, question: string): Promise<
 }
 
 export async function generateAssistantReply(ctx: ChatContext, question: string): Promise<string> {
-  const provider = getAiProvider();
+  const provider = await getAiProvider(ctx.orgId);
   if (!provider) throw AI_CHAT_ERROR;
 
   const snapshot = await buildContext(ctx, question);
   const system: ChatMessage = {
     role: 'system',
     content:
-      'You are the AI assistant inside an Indian business CRM called LeadFlow AI. ' +
+      'You are the AI assistant inside an Indian business CRM called PRIMELEAD AI. ' +
       'Answer the salesperson\'s question using ONLY the context snapshot provided — it contains real, current data ' +
       'from their own organisation. Be concise, friendly, practical, and answer in Hinglish unless asked otherwise. ' +
       'If the data does not answer the question, say so honestly. Never invent numbers, names or facts. ' +

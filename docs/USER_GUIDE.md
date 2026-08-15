@@ -1,12 +1,12 @@
-# LeadFlow AI — User Guide
+# PRIMELEAD AI — User Guide
 
 > **For business owners, managers and salespeople.** This guide walks you through every feature, step by step. No technical knowledge needed.
 
-**LeadFlow AI** is your team's CRM — it captures every enquiry, assigns it to the right salesperson, reminds you to follow up, and lets AI write your follow-up messages.
+**PRIMELEAD AI** is your team's CRM — it captures every enquiry, assigns it to the right salesperson, reminds you to follow up, and lets AI write your follow-up messages.
 
 ## 🎯 Built for Indian Marketing & Web Dev Agencies
 
-LeadFlow AI is specifically designed for Indian marketing and web development agencies. Unlike generic CRMs like Zoho or HubSpot, we focus on:
+PRIMELEAD AI is specifically designed for Indian marketing and web development agencies. Unlike generic CRMs like Zoho or HubSpot, we focus on:
 
 - **GST-compliant quotations & invoices** — out of the box, no configuration needed
 - **WhatsApp-native workflows** — your leads already live in WhatsApp, so should your CRM
@@ -35,7 +35,7 @@ This specificity makes us the perfect fit for 3-5 person agencies who find gener
 
 ### 1. Logging in
 
-1. Open the LeadFlow AI web address you were given (e.g. `http://localhost:5173`).
+1. Open the PRIMELEAD AI web address you were given (e.g. `http://localhost:5173`).
 2. Click **Log in** (top-right).
 3. Enter the email and password your manager gave you.
 
@@ -75,7 +75,7 @@ The dashboard is your **morning check-in**. You'll see:
 3. Fill in the customer's **name** (required), phone, email, company, source, priority and expected value.
 4. Click **Create lead**.
 
-> **What happens next, automatically:** LeadFlow checks for duplicates, gives the lead a **score** (0–100 based on priority, value and contact details), and **assigns it to the least-loaded salesperson**. The salesperson gets a notification.
+> **What happens next, automatically:** PRIMELEAD checks for duplicates, gives the lead a **score** (0–100 based on priority, value and contact details), and **assigns it to the least-loaded salesperson**. The salesperson gets a notification.
 
 ### The leads table
 
@@ -156,7 +156,7 @@ Open **Follow-ups** from the menu. You get views:
 
 **To create one:** open any lead → **Schedule follow-up**, pick a kind (Call / WhatsApp / Email / Meeting / Task), a date & time, and notes.
 
-> LeadFlow **reminds you automatically** — overdue follow-ups raise notifications, and overdue tasks are detected in the background every minute.
+> PRIMELEAD **reminds you automatically** — overdue follow-ups raise notifications, and overdue tasks are detected in the background every minute.
 
 ---
 

@@ -14,6 +14,7 @@ import { recentErrors, uptimeSeconds, clearErrors } from '../lib/server-log';
 import { OPEN_STATUSES } from '../constants';
 import { audit } from '../lib/audit';
 import { publicUser } from '../lib/serializers';
+import { paiseToRupees } from '../lib/money';
 
 const router = Router();
 router.use(requireAuth, requireSuperAdmin);
@@ -64,7 +65,7 @@ async function orgStats(orgIds?: string[]) {
     users: byUser.get(orgId)?._count._all ?? 0,
     leads: byLead.get(orgId)?._count._all ?? 0,
     openLeads: byOpen.get(orgId)?._count._all ?? 0,
-    pipelineValue: byValue.get(orgId)?._sum.expectedValue ?? 0,
+    pipelineValue: paiseToRupees(byValue.get(orgId)?._sum.expectedValue ?? 0),
     overdueTasks: byOverdue.get(orgId)?._count._all ?? 0,
     qrCodes: byQr.get(orgId)?._count._all ?? 0,
   });
@@ -102,7 +103,7 @@ router.get(
         users: userCount,
         leads: leadCount,
         wonLeads: wonCount,
-        wonValue: wonValue._sum.expectedValue ?? 0,
+        wonValue: paiseToRupees(wonValue._sum.expectedValue ?? 0),
         qrCodes: qrCount,
         quotations: quotationCount,
         invoices: invoiceCount,

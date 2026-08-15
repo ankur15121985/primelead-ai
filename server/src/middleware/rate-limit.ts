@@ -1,10 +1,13 @@
 import rateLimit from 'express-rate-limit';
 import { tooMany } from '../lib/http';
 
-/** Login throttling — 5 attempts per 10 minutes per IP. */
+/**
+ * Login throttling — 5 attempts per 10 minutes per IP by default.
+ * Overridable via LOGIN_RATE_LIMIT (tests raise it to avoid cross-test noise).
+ */
 export const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
-  limit: 5,
+  limit: Number(process.env.LOGIN_RATE_LIMIT || 5),
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, _res) => {

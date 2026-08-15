@@ -7,7 +7,7 @@ import { LEAD_SOURCES, BUSINESS_TYPES } from '../constants';
 const router = Router();
 
 router.get('/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'leadflow-api', time: new Date().toISOString() });
+  res.json({ status: 'ok', service: 'primelead-api', time: new Date().toISOString() });
 });
 
 router.post(

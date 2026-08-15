@@ -16,7 +16,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, ok, validate } from '../lib/http';
-import { requireAuth, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
 import { integrationUpdateSchema } from '../validators/schemas';
 import { audit } from '../lib/audit';
 import { config } from '../config';
@@ -33,7 +33,7 @@ export const INTEGRATION_CATALOG = [
   { source: 'JUSTDIAL', name: 'JustDial', description: 'Bring JustDial business enquiries into your pipeline.', kind: 'webhook', icon: 'PhoneCall' },
   { source: 'TRADEINDIA', name: 'TradeIndia', description: 'Capture TradeIndia seller enquiries as leads.', kind: 'webhook', icon: 'Briefcase' },
   { source: 'SHOPIFY', name: 'Shopify', description: 'Create a lead for every new order or abandoned cart.', kind: 'webhook', icon: 'ShoppingBag' },
-  { source: 'ZAPIER', name: 'Zapier', description: 'Connect 5,000+ apps to push leads into LeadFlow.', kind: 'webhook', icon: 'Zap' },
+  { source: 'ZAPIER', name: 'Zapier', description: 'Connect 5,000+ apps to push leads into PRIMELEAD.', kind: 'webhook', icon: 'Zap' },
   { source: 'API', name: 'REST API', description: 'Push leads programmatically from your own system.', kind: 'api', icon: 'Code2' },
 ] as const;
 
@@ -65,6 +65,7 @@ router.get(
 /** Generate (or regenerate) a webhook secret + URL for a source. */
 router.post(
   '/:source/connect',
+  requirePermission('integrations.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);
@@ -107,6 +108,7 @@ router.post(
 
 router.patch(
   '/:source',
+  requirePermission('integrations.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);
@@ -132,6 +134,7 @@ router.patch(
 
 router.delete(
   '/:source',
+  requirePermission('integrations.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);

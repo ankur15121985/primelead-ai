@@ -102,7 +102,7 @@ export function AiAssistant() {
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary"><Bot className="h-4 w-4" /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">LeadFlow Assistant</p>
+            <p className="text-sm font-semibold">PRIMELEAD Assistant</p>
             <p className="text-xs text-muted-foreground">Answers from your own CRM data</p>
           </div>
           {configured ? (

@@ -6,7 +6,7 @@ import { PLANS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 export function Pricing() {
-  useSeo('Pricing — LeadFlow AI', 'Simple pricing for Indian businesses. Start free, upgrade when your team grows.');
+  useSeo('Pricing — PRIMELEAD AI', 'Simple pricing for Indian businesses. Start free, upgrade when your team grows.');
   const [annual, setAnnual] = useState(true);
 
   return (
@@ -93,7 +93,7 @@ export function Pricing() {
       <div className="mt-16 rounded-2xl border bg-slate-50 p-8 text-center">
         <h2 className="text-xl font-bold">Partnerships & Referrals</h2>
         <p className="mt-2 max-w-xl mx-auto text-muted-foreground">
-          Are you a consultant who advises agencies on tools? Join our referral program and earn commissions for every agency you refer to LeadFlow AI.
+          Are you a consultant who advises agencies on tools? Join our referral program and earn commissions for every agency you refer to PRIMELEAD AI.
         </p>
         <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
           <Sparkles className="h-4 w-4" /> Coming Soon

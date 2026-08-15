@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 
 const FAQS = [
   {
-    q: 'Do I need technical knowledge to use LeadFlow?',
-    a: 'No. If you can use WhatsApp, you can use LeadFlow. Set up takes about 3 minutes, and the dashboard is designed for a non-technical business owner. Your sales team can start working the same day.',
+    q: 'Do I need technical knowledge to use PRIMELEAD?',
+    a: 'No. If you can use WhatsApp, you can use PRIMELEAD. Set up takes about 3 minutes, and the dashboard is designed for a non-technical business owner. Your sales team can start working the same day.',
   },
   {
     q: 'How does automatic lead assignment work?',
@@ -22,7 +22,7 @@ const FAQS = [
     a: 'Each organisation\'s data is fully isolated — the AI assistant can only ever see your own company\'s data. Passwords are hashed, sessions are secure, and sensitive actions are audit-logged. You can export your data anytime.',
   },
   {
-    q: 'Can I use LeadFlow on mobile?',
+    q: 'Can I use PRIMELEAD on mobile?',
     a: 'Absolutely. The app is mobile-first with bottom navigation, big touch targets and a phone-friendly lead view, so salespeople can call, WhatsApp, add notes and change stages on the go.',
   },
   {
@@ -30,7 +30,7 @@ const FAQS = [
     a: 'Your data is never deleted. You can pick a paid plan or drop back to the free Starter plan and keep your leads.',
   },
   {
-    q: 'Does LeadFlow support GST quotations and invoices?',
+    q: 'Does PRIMELEAD support GST quotations and invoices?',
     a: 'Yes. Quotations and invoices support CGST+SGST (intra-state) and IGST (inter-state), per-item taxes, discounts, GSTIN fields, HSN/SAC and PDF download.',
   },
   {
@@ -40,7 +40,7 @@ const FAQS = [
 ];
 
 export function FAQ() {
-  useSeo('FAQ — LeadFlow AI', 'Answers to common questions about LeadFlow AI.');
+  useSeo('FAQ — PRIMELEAD AI', 'Answers to common questions about PRIMELEAD AI.');
   const [open, setOpen] = useState<number | null>(0);
 
   return (

@@ -6,7 +6,7 @@ import {
 import { useSeo } from '@/hooks/use-seo';
 
 export function Features() {
-  useSeo('Features — LeadFlow AI', 'Everything you need to capture, assign, follow up and close more leads.');
+  useSeo('Features — PRIMELEAD AI', 'Everything you need to capture, assign, follow up and close more leads.');
 
   const blocks = [
     {

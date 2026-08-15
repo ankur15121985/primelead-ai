@@ -11,9 +11,10 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, notFound, ok, validate } from '../lib/http';
-import { requireAuth, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
 import { quotationCreateSchema, quotationUpdateSchema } from '../validators/schemas';
 import { withNextNumber, serializeQuotation, computeDocumentTotals, renderDocumentPdf } from '../services/documents';
+import { rupeesToPaise, paiseToRupees } from '../lib/money';
 import { audit } from '../lib/audit';
 import { notify } from '../lib/serializers';
 
@@ -34,6 +35,7 @@ function docWhere(user: { role: string; id: string }, orgId: string, extra: Reco
 
 router.get(
   '/',
+  requirePermission('quotations.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const q = req.query as Record<string, string>;
@@ -71,6 +73,7 @@ router.get(
 
 router.post(
   '/',
+  requirePermission('quotations.create'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(quotationCreateSchema, req.body);
@@ -81,7 +84,9 @@ router.post(
       if (!lead) throw badRequest('The linked lead was not found.');
     }
 
-    const calc = computeDocumentTotals(input.items, input.discount);
+    // API boundary: rates and discounts arrive in rupees → store as paise.
+    const itemsPaise = input.items.map((it) => ({ ...it, rate: rupeesToPaise(it.rate) }));
+    const calc = computeDocumentTotals(itemsPaise, rupeesToPaise(input.discount || 0));
     const quotation = await withNextNumber(user.orgId, 'QT', async (docNumber) =>
       prisma.quotation.create({
       data: {
@@ -128,7 +133,7 @@ router.post(
           userId: user.id,
           type: 'QUOTATION',
           title: 'Quotation created',
-          body: `${quotation.number} for ${formatINR(quotation.total)}`,
+          body: `${quotation.number} for ${formatINR(paiseToRupees(quotation.total))}`,
         },
       });
     }
@@ -138,6 +143,7 @@ router.post(
 
 router.get(
   '/:id',
+  requirePermission('quotations.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const quotation = await prisma.quotation.findFirst({
@@ -151,14 +157,18 @@ router.get(
 
 router.patch(
   '/:id',
+  requirePermission('quotations.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(quotationUpdateSchema, req.body);
     const existing = await prisma.quotation.findFirst({ where: { id: req.params.id, ...docWhere(user, user.orgId) }, include: { items: true } });
     if (!existing) throw notFound('Quotation not found');
 
-    const items = input.items || (existing.items as any[]);
-    const calc = computeDocumentTotals(items, input.discount ?? existing.discount);
+    // Rates arrive in rupees when the client sends items; existing rows are paise.
+    const itemsPaise = (input.items || (existing.items as any[])).map((it: any) =>
+      input.items ? { ...it, rate: rupeesToPaise(it.rate) } : it
+    );
+    const calc = computeDocumentTotals(itemsPaise, input.discount !== undefined ? rupeesToPaise(input.discount) : existing.discount);
 
     if (input.status === 'ACCEPTED' && existing.leadId) {
       await notify({
@@ -216,6 +226,7 @@ router.patch(
 
 router.delete(
   '/:id',
+  requirePermission('quotations.delete'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);
@@ -230,6 +241,7 @@ router.delete(
 /** Convert an accepted quotation into an invoice (copies customer + items). */
 router.post(
   '/:id/convert',
+  requirePermission('quotations.convert'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const quotation = await prisma.quotation.findFirst({
@@ -278,12 +290,13 @@ router.post(
       data: { status: 'CONVERTED', invoiceId: invoice.id },
     });
     await audit({ orgId: user.orgId, userId: user.id, action: 'QUOTATION_CONVERTED', entity: 'Quotation', entityId: quotation.id, metadata: { invoiceId: invoice.id }, req });
-    return ok(res, { invoice: { id: invoice.id, number: invoice.number, total: invoice.total }, quotationId: quotation.id });
+    return ok(res, { invoice: { id: invoice.id, number: invoice.number, total: paiseToRupees(invoice.total) }, quotationId: quotation.id });
   })
 );
 
 router.get(
   '/:id/pdf',
+  requirePermission('quotations.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const quotation = await prisma.quotation.findFirst({

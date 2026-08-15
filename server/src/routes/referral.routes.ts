@@ -4,6 +4,7 @@ import { requireAuth, type AuthedRequest } from '../middleware/auth';
 import { asyncHandler, ApiError, validate } from '../lib/http';
 import { prisma } from '../lib/prisma';
 import { audit } from '../lib/audit';
+import { rupeesToPaise, paiseToRupees } from '../lib/money';
 
 const router = Router();
 
@@ -30,7 +31,7 @@ router.post(
     }
 
     // Generate unique referral code
-    const referralCode = `LF-${user.orgId.slice(0, 4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const referralCode = `PL-${user.orgId.slice(0, 4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
     const referral = await prisma.referral.create({
       data: {
@@ -107,8 +108,8 @@ router.get('/stats', requireAuth, asyncHandler(async (req, res) => {
       stats: {
         totalReferrals,
         convertedReferrals,
-        totalPayouts: totalPayouts._sum.amount || 0,
-        pendingPayouts: pendingPayouts._sum.amount || 0,
+        totalPayouts: paiseToRupees(totalPayouts._sum.amount || 0),
+        pendingPayouts: paiseToRupees(pendingPayouts._sum.amount || 0),
       },
     },
   });
@@ -226,7 +227,7 @@ router.post(
     const payout = await prisma.referralPayout.create({
       data: {
         referralId: id,
-        amount,
+        amount: rupeesToPaise(amount),
         currency,
         status: 'PENDING',
       },

@@ -1,12 +1,12 @@
-# LeadFlow AI
+# PRIMELEAD AI
 
 **AI-powered CRM & lead management for Indian businesses.**
 
 > Every lead captured. Every lead assigned. Every follow-up remembered.
 
-LeadFlow AI is a production-style SaaS: a premium marketing site plus a fully working multi-tenant CRM — lead capture, automatic assignment, follow-up engine, sales pipeline, AI follow-up writer, WhatsApp integration flow, notifications, team management and analytics.
+PRIMELEAD AI is a production-style SaaS: a premium marketing site plus a fully working multi-tenant CRM — lead capture, automatic assignment, follow-up engine, sales pipeline, AI follow-up writer, WhatsApp integration flow, notifications, team management and analytics.
 
-This is an **original product** (demo brand "LeadFlow AI") inspired by the *category* of sales CRMs. No third-party branding, text or assets are used.
+This is an **original product** (demo brand "PRIMELEAD AI") inspired by the *category* of sales CRMs. No third-party branding, text or assets are used.
 
 ## 📖 Guides
 
@@ -23,9 +23,11 @@ This is an **original product** (demo brand "LeadFlow AI") inspired by the *cate
 | Area | Status |
 |---|---|
 | Marketing site (Home, Features, Lead Sources, Pricing, FAQ, Contact, Login, Signup, Forgot/Reset) | ✅ |
-| Auth — email/password, bcrypt hashing, JWT httpOnly cookies, CSRF double-submit, rate limiting, email verification + password reset (console mailer in dev) | ✅ |
+| Auth — email/password, bcrypt hashing, **revocable DB-backed sessions** (httpOnly cookies), CSRF double-submit, rate limiting, email verification + password reset (console mailer in dev) | ✅ |
+| Auth hardening — account lockout, login history, **device/session management**, **MFA/TOTP + recovery codes**, change-password revokes other sessions | ✅ |
 | Multi-tenant org isolation (orgId on every entity, org resolved from session, never from client) | ✅ |
-| RBAC — Owner / Admin / Manager / Salesperson, server-side enforcement | ✅ |
+| RBAC — **7 system roles** (Owner/Admin/Manager/Sales/Accountant/Support/Viewer) + **config-driven custom roles**, granular permissions, server-side enforcement | ✅ |
+| **Teams** — Org → Team → User grouping, member assignment, team CRUD | ✅ |
 | Leads — table (search/filter/sort/pagination), bulk assign/status/tag/delete, CSV import/export, duplicate detection, lead scoring | ✅ |
 | Lead detail — timeline, call/WhatsApp/email actions, notes, stage & owner change, follow-up scheduling | ✅ |
 | Automatic assignment — least-open-leads + round-robin + per-source rules | ✅ |
@@ -43,14 +45,15 @@ This is an **original product** (demo brand "LeadFlow AI") inspired by the *cate
 | **Billing** — plans + monthly/yearly toggle, subscription, payment history, provider-agnostic (Razorpay/Stripe ready) | ✅ |
 | **Contacts** — customer directory with search, tags, lead links | ✅ |
 | **Super-admin console** (`/admin`) — platform overview, all organizations, user management, suspend/activate + plan changes, system diagnostics + live error feed (gated by `SUPER_ADMIN_EMAILS`) | ✅ |
-| Automated tests (55 passing) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control | ✅ |
+| Automated tests (**71 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, **plus MFA, sessions, account lock, RBAC, teams, request-ids, paise money** | ✅ |
+| **Money in paise** — integer paise everywhere (leads, quotations, invoices, billing), exact GST arithmetic, converted to rupees only at the API/UI boundary | ✅ |
 | **Free tools** — QR Code Generator, GST Invoice Generator (lead magnets, no signup required) | ✅ |
 
 ---
 
 ## 🎯 Go-To-Market Strategy
 
-LeadFlow AI is built specifically for **Indian marketing & web development agencies**. Our GTM strategy focuses on:
+PRIMELEAD AI is built specifically for **Indian marketing & web development agencies**. Our GTM strategy focuses on:
 
 ### Target Customer (ICP)
 - **Solo freelancers** — Web devs/marketers with 5-15 active clients
@@ -73,7 +76,7 @@ LeadFlow AI is built specifically for **Indian marketing & web development agenc
 - **[QR Code Generator](/tools/qr-generator)** — Free, no signup required
 - **[GST Invoice Generator](/tools/gst-invoice-generator)** — Free, no signup required
 
-These tools demonstrate LeadFlow AI's value and capture leads for nurturing.
+These tools demonstrate PRIMELEAD AI's value and capture leads for nurturing.
 
 ---
 
@@ -82,8 +85,8 @@ These tools demonstrate LeadFlow AI's value and capture leads for nurturing.
 - **Frontend:** React 18 · TypeScript · Vite · Tailwind CSS · Radix UI · TanStack Query · React Router · Recharts · Lucide
 - **Backend:** Node.js · TypeScript · Express · Prisma
 - **Database:** SQLite (dev, zero-setup) — **PostgreSQL-ready** (change `provider` + `DATABASE_URL` in `server/prisma/schema.prisma`)
-- **Auth:** bcrypt · JWT (httpOnly cookie) · double-submit CSRF · express-rate-limit · helmet
-- **AI:** pluggable provider (OpenAI-compatible) — no vendor code outside `server/src/ai/provider.ts`
+- **Auth:** bcrypt · revocable DB sessions (hashed tokens in httpOnly cookies) · TOTP MFA (otplib) · double-submit CSRF · express-rate-limit · helmet
+- **AI:** pluggable provider (OpenAI-compatible) — no vendor code outside `server/src/ai/provider.ts`; per-org provider config from org settings (no cross-tenant key leakage)
 - **Email:** nodemailer with console fallback (dev)
 
 ---
@@ -117,10 +120,10 @@ Open **http://localhost:5173**.
 
 | Role | Email | Password |
 |---|---|---|
-| Owner | `owner@leadflow.demo` | `Demo@1234` |
-| Manager | `manager@leadflow.demo` | `Demo@1234` |
-| Salesperson | `karan@leadflow.demo` | `Demo@1234` |
-| Salesperson | `pooja@leadflow.demo` | `Demo@1234` |
+| Owner | `owner@primelead.demo` | `Demo@1234` |
+| Manager | `manager@primelead.demo` | `Demo@1234` |
+| Salesperson | `karan@primelead.demo` | `Demo@1234` |
+| Salesperson | `pooja@primelead.demo` | `Demo@1234` |
 
 Or click **Start Free** and run the onboarding wizard — it can seed realistic sample data for you.
 
@@ -130,7 +133,7 @@ Or click **Start Free** and run the onboarding wizard — it can seed realistic 
 npm run dev           # API + web together
 npm run dev:server    # API only
 npm run dev:client    # web only
-npm test              # server unit + API tests (55)
+npm test              # server unit + API tests (71)
 npm run typecheck     # server + client TypeScript checks
 npm run build         # production builds
 npm run db:seed       # reset/seed demo data
@@ -145,16 +148,16 @@ Compute/
 ├─ server/                    # Express + Prisma API
 │  ├─ prisma/
 │  │  ├─ schema.prisma        # full multi-tenant schema (SQLite, Postgres-ready)
-│  │  └─ seed.ts              # demo org, users, sample leads, plans
+│  │  └─ seed.ts              # demo org, users, sample leads, plans, roles
 │  └─ src/
-│     ├─ ai/provider.ts       # AI provider abstraction (only AI code)
-│     ├─ constants/           # statuses, sources, roles, scoring
-│     ├─ lib/                 # prisma, jwt, passwords, mailer, audit, http, csrf
-│     ├─ middleware/          # auth (RBAC + org isolation), error, rate-limit, csrf
-│     ├─ services/            # assignment, followups, leads, gst, ai-followup, onboarding
-│     ├─ routes/              # auth, leads, pipeline, tasks, dashboard, team, settings, ai, misc
+│     ├─ ai/provider.ts       # AI provider abstraction (per-org config, no key leakage)
+│     ├─ constants/           # statuses, sources, permission catalog (rbac.ts), scoring
+│     ├─ lib/                 # prisma, sessions (revocable), jwt, passwords, money (paise), mailer, audit, http, csrf
+│     ├─ middleware/          # auth (sessions + RBAC + org isolation), request-id, error, rate-limit, csrf
+│     ├─ services/            # assignment, followups, leads, gst (paise), rbac, ai-followup, onboarding
+│     ├─ routes/              # auth (+MFA/sessions), roles, teams, leads, pipeline, tasks, dashboard, settings, ai, misc
 │     ├─ validators/          # zod schemas
-│     └─ tests/               # API smoke tests (supertest)
+│     └─ tests/               # API tests (supertest)
 └─ client/                    # Vite React app
    ├─ public/                 # favicon, robots.txt, sitemap.xml
    └─ src/
@@ -170,20 +173,23 @@ Compute/
 ## 🔐 Security checklist (implemented)
 
 - [x] Passwords hashed with bcrypt (10 rounds)
-- [x] JWT sessions in httpOnly, SameSite=Lax cookies
+- [x] Revocable DB-backed sessions — token hash stored server-side, httpOnly SameSite=Lax cookie, per-device revocation, touch-based expiry
+- [x] MFA/TOTP (optional) with 10 single-use recovery codes; login challenged before a session is issued
+- [x] Account lockout after N failed attempts; login history (success/failure/IP/device) recorded
 - [x] Double-submit CSRF token on all state-changing requests
 - [x] Rate limiting: global API + login throttling (5 attempts / 10 min)
 - [x] HTTP security headers (helmet), CORS restricted in production
 - [x] Zod validation on every input (422 with readable messages)
 - [x] Multi-tenant isolation: `orgId` from session only; org-scoped queries everywhere
-- [x] Server-side RBAC (Owner/Admin/Manager/Sales) — frontend checks are cosmetic
+- [x] Config-driven server-side RBAC — 7 system roles + custom roles with a granular permission catalog; frontend checks are cosmetic
 - [x] Salespeople scoped to their own leads
-- [x] Password reset + email verification tokens (hashed, 1h/24h expiry, single use)
-- [x] Audit log for sensitive actions (login, lead create/delete, user add/remove, exports…)
+- [x] Password reset + email verification tokens (hashed, 1h/24h expiry, single use); changing your password revokes every other session
+- [x] Audit log for sensitive actions (login, MFA changes, session revokes, lead create/delete, user add/remove, exports…)
+- [x] Request IDs on every response + in every error envelope (`requestId`), logged server-side
 - [x] Friendly error mapping — raw errors never leak (see `server/src/middleware/error.ts`)
-- [x] Soft-delete for leads, API keys stored server-side only
+- [x] Money stored as integer paise (never float); soft-delete for leads, API keys stored server-side only
 
-> Production notes: set `COOKIE_SECURE=true` + `NODE_ENV=production` behind HTTPS, set a long random `JWT_SECRET`, restrict `CLIENT_ORIGIN`, and add real SMTP credentials. For Postgres, change the datasource provider and `DATABASE_URL`.
+> Production notes: set `COOKIE_SECURE=true` + `NODE_ENV=production` behind HTTPS, set a long random `JWT_SECRET` (used for the short-lived MFA challenge token), restrict `CLIENT_ORIGIN`, and add real SMTP credentials. For Postgres, change the datasource provider and `DATABASE_URL`.
 
 ---
 
@@ -195,10 +201,30 @@ See **[API.md](./API.md)** for the full endpoint reference.
 
 ```
 POST   /api/auth/signup              create org + owner, sets session
-POST   /api/auth/login               sign in (rate limited)
+POST   /api/auth/login               sign in (rate limited; MFA challenge if enabled)
+POST   /api/auth/mfa/verify          complete login with TOTP code
+POST   /api/auth/mfa/recovery        complete login with a recovery code
+POST   /api/auth/mfa/setup           start MFA setup (returns secret + QR)
+POST   /api/auth/mfa/confirm         enable MFA + receive recovery codes
+POST   /api/auth/mfa/disable         disable MFA (password + code)
+GET    /api/auth/sessions            my active devices
+POST   /api/auth/sessions/:id/revoke sign out one device
+POST   /api/auth/sessions/revoke-others   sign out every other device
+GET    /api/auth/login-history       my recent sign-ins (success/failure/IP/device)
+POST   /api/auth/change-password     change password (revokes other sessions)
 POST   /api/auth/logout
-GET    /api/auth/me                  current user + org (+ issues CSRF cookie)
+GET    /api/auth/me                  current user + org + permissions + mfaEnabled (+ issues CSRF cookie)
 POST   /api/auth/onboarding          business type, sample data, invites
+
+GET    /api/roles                    org roles + permission catalog
+POST   /api/roles                    create a custom role (roles.manage)
+PATCH  /api/roles/:id                edit a custom role
+DELETE /api/roles/:id                delete a custom role (must be unused)
+
+GET    /api/teams                    list teams + members
+POST   /api/teams                    create a team (teams.manage)
+PATCH  /api/teams/:id                rename a team
+DELETE /api/teams/:id                delete a team (members unassigned, kept)
 
 GET    /api/leads?search=&status=&source=&ownerId=&page=&sort=
 POST   /api/leads                    create lead (dedupe + auto-assign)
@@ -291,9 +317,11 @@ POST   /api/ai/follow-up             AI follow-up writer
 
 **Admin panel:** add emails to `SUPER_ADMIN_EMAILS` in `server/.env`, log in with one of them, then open **Avatar → Admin panel** (or `/admin`). See `docs/DEVELOPER_GUIDE.md` §3.
 
-**Auth model:** every state-changing request must send the double-submit token from the `lf_csrf` cookie in the `x-csrf-token` header (the client does this automatically). Session cookie: `lf_session`.
+**Auth model:** every state-changing request must send the double-submit token from the `pl_csrf` cookie in the `x-csrf-token` header (the client does this automatically). Session cookie: `pl_session`.
 
-**Response envelope:** success → `{ "data": ... }`; error → `{ "error": { "code", "message", "details? } }`.
+**Response envelope:** success → `{ "data": ... }`; error → `{ "error": { "code", "message", "requestId", "details? } }`. Every response carries an `X-Request-Id` header; the same id appears in the error body and the server log for correlation.
+
+**Money:** the API accepts and returns **rupees** (the UI/JSON boundary), but the database stores **integer paise** — never floating-point money. GST, discounts and totals are computed in paise server-side (`server/src/services/gst.ts`, `server/src/lib/money.ts`).
 
 ---
 
@@ -318,7 +346,7 @@ Per-org keys can also be saved in **Settings → AI** (stored server-side, never
 npm test
 ```
 
-Covers: GST calculations (CGST/SGST/IGST, discounts, rounding), lead scoring, signup/login, duplicate detection, auto-assignment to least-loaded salesperson, pipeline stage moves + activity logging, follow-ups, CSV export, QR lead capture, super-admin access control (org suspend/reactivate, 403 for non-admins), CSRF enforcement, and cross-org data isolation.
+Covers: GST calculations (CGST/SGST/IGST, discounts, rounding, in paise), lead scoring, signup/login, duplicate detection, auto-assignment to least-loaded salesperson, pipeline stage moves + activity logging, follow-ups, CSV export, QR lead capture, super-admin access control (org suspend/reactivate, 403 for non-admins), CSRF enforcement, cross-org data isolation, **plus Phase 1: request-ids in errors, session revocation & device management, account lockout, login history, MFA enable/challenge/TOTP/recovery/disable, change-password, RBAC role seeding + custom-role enforcement, team CRUD + cross-org team rejection, paise money boundaries, and tenant isolation on the new auth models**.
 
 ---
 

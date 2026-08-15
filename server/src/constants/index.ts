@@ -1,14 +1,27 @@
 /** Shared business constants. Mirrored on the client (client/src/lib/constants.ts). */
 
-export const ROLES = ['OWNER', 'ADMIN', 'MANAGER', 'SALES'] as const;
+export const ROLES = ['OWNER', 'ADMIN', 'MANAGER', 'SALES', 'ACCOUNTANT', 'SUPPORT', 'VIEWER'] as const;
 export type Role = (typeof ROLES)[number];
 
-export const ROLE_RANK: Record<Role, number> = { OWNER: 4, ADMIN: 3, MANAGER: 2, SALES: 1 };
+/**
+ * Order for hierarchy checks — a role can manage anyone at or below this rank.
+ * Custom roles (created in Settings → Roles) are treated as rank 1.
+ */
+export const ROLE_RANK: Record<string, number> = {
+  OWNER: 7,
+  ADMIN: 6,
+  MANAGER: 5,
+  ACCOUNTANT: 2,
+  SUPPORT: 1,
+  VIEWER: 1,
+  SALES: 1,
+};
 
-/** Order for hierarchy checks — a role can manage anyone at or below this rank. */
-export function canManage(actor: Role, target: Role): boolean {
-  return ROLE_RANK[actor] > ROLE_RANK[target];
+export function canManage(actor: string, target: string): boolean {
+  return (ROLE_RANK[actor] ?? 1) > (ROLE_RANK[target] ?? 1);
 }
+
+export { SYSTEM_ROLES, PERMISSIONS, rolePermissionsFallback, ROLE_LABEL as SYSTEM_ROLE_LABEL } from './rbac';
 
 export const LEAD_STATUSES = ['NEW', 'CONTACTED', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST'] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];

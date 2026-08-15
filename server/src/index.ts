@@ -8,7 +8,7 @@ async function main() {
 
   app.listen(config.port, () => {
     // eslint-disable-next-line no-console
-    console.log(`⚡ LeadFlow API listening on http://localhost:${config.port}`);
+    console.log(`⚡ PRIMELEAD API listening on http://localhost:${config.port}`);
   });
 
   // Follow-up engine: mark overdue tasks + notify exactly once, every 60s.

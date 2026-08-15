@@ -4,6 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { config } from './config';
 import { apiLimiter } from './middleware/rate-limit';
+import { requestId } from './middleware/request-id';
 import { ensureCsrfCookie, csrfProtection } from './middleware/csrf';
 import { errorHandler, notFoundHandler } from './middleware/error';
 import authRoutes from './routes/auth.routes';
@@ -27,6 +28,8 @@ import billingRoutes from './routes/billing.routes';
 import contactsRoutes from './routes/contacts.routes';
 import adminRoutes from './routes/admin.routes';
 import referralRoutes from './routes/referral.routes';
+import rolesRoutes from './routes/roles.routes';
+import teamsRoutes from './routes/teams.routes';
 
 export function createApp() {
   const app = express();
@@ -51,6 +54,7 @@ export function createApp() {
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(cookieParser());
+  app.use(requestId);
 
   app.use('/api', apiLimiter);
   app.use('/api', ensureCsrfCookie);
@@ -83,6 +87,8 @@ export function createApp() {
   app.use('/api/billing', billingRoutes);
   app.use('/api/contacts', contactsRoutes);
   app.use('/api/referrals', referralRoutes);
+  app.use('/api/roles', rolesRoutes);
+  app.use('/api/teams', teamsRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

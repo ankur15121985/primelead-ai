@@ -31,7 +31,7 @@ router.post(
     // The webhook URL is shared across tenants for the same source, so the
     // tenant is resolved from the secret itself (each org's secret is unique).
     const candidates = await prisma.integration.findMany({ where: { source } });
-    const secret = String(req.headers['x-webhook-secret'] || req.headers['x-leadflow-secret'] || '').trim();
+    const secret = String(req.headers['x-webhook-secret'] || req.headers['x-primelead-secret'] || '').trim();
     if (!secret || candidates.length === 0) throw unauthorized('Invalid webhook secret.');
 
     let integration: (typeof candidates)[number] | null = null;

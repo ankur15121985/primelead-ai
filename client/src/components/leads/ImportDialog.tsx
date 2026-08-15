@@ -63,7 +63,7 @@ export function ImportDialog({ open, onOpenChange }: { open: boolean; onOpenChan
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = 'leadflow-leads-template.csv';
+              a.download = 'primelead-leads-template.csv';
               a.click();
               URL.revokeObjectURL(url);
             }}

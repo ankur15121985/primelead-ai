@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, ok, validate } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { assertManagerOrAbove } from '../middleware/auth';
 import { z } from 'zod';
 import { scopedWhere } from '../middleware/auth';
@@ -23,6 +23,7 @@ const stageOrderSchema = z.object({
 router.get(
   '/',
   requireAuth,
+  requirePermission('pipeline.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const pipeline = await prisma.pipeline.findFirst({
@@ -52,6 +53,7 @@ router.get(
 router.post(
   '/stages',
   requireAuth,
+  requirePermission('pipeline.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);
@@ -81,6 +83,7 @@ router.post(
 router.post(
   '/stages/reorder',
   requireAuth,
+  requirePermission('pipeline.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);

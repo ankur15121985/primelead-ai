@@ -7,7 +7,7 @@ import { useSeo } from '@/hooks/use-seo';
 import { Badge } from '@/components/ui/badge';
 
 export function Home() {
-  useSeo('LeadFlow AI — Stop Losing Leads. Start Closing Them.', 'Capture every enquiry, assign it automatically, follow up on time and let AI help your sales team close more business.');
+  useSeo('PRIMELEAD AI — Stop Losing Leads. Start Closing Them.', 'Capture every enquiry, assign it automatically, follow up on time and let AI help your sales team close more business.');
 
   return (
     <div>
@@ -85,7 +85,7 @@ function CrmPreview() {
             <span className="h-3 w-3 rounded-full bg-amber-400" />
             <span className="h-3 w-3 rounded-full bg-emerald-400" />
           </div>
-          <span className="text-xs font-medium text-muted-foreground">LeadFlow AI · Lead Inbox</span>
+          <span className="text-xs font-medium text-muted-foreground">PRIMELEAD AI · Lead Inbox</span>
           <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">Live</span>
         </div>
         <div className="grid gap-4 p-5 sm:grid-cols-[1fr_220px]">
@@ -201,7 +201,7 @@ function WhyAgencies() {
         <SectionTag>Why marketing & web dev agencies first</SectionTag>
         <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Built for agencies, not adapted for them</h2>
         <p className="mt-4 text-muted-foreground">
-          Generic CRMs like Zoho and HubSpot are broad and intimidating for a 3-5 person agency. LeadFlow AI's specificity — GST invoicing, WhatsApp-native workflows, QR capture — is the wedge.
+          Generic CRMs like Zoho and HubSpot are broad and intimidating for a 3-5 person agency. PRIMELEAD AI's specificity — GST invoicing, WhatsApp-native workflows, QR capture — is the wedge.
         </p>
       </div>
       <div className="mt-12 grid gap-5 md:grid-cols-2">
@@ -276,7 +276,7 @@ function Features() {
         <SectionTag>Everything you need</SectionTag>
         <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">A complete sales system, not just a phone book</h2>
         <p className="mt-4 text-muted-foreground">
-          Built specifically for Indian marketing & web development agencies. Generic CRMs like Zoho and HubSpot are broad and intimidating for a 3-5 person agency. LeadFlow AI's specificity is the wedge.
+          Built specifically for Indian marketing & web development agencies. Generic CRMs like Zoho and HubSpot are broad and intimidating for a 3-5 person agency. PRIMELEAD AI's specificity is the wedge.
         </p>
       </div>
       <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -362,7 +362,7 @@ function AiSection() {
           <div className="flex items-center gap-2 border-b border-slate-800 pb-4">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm">L</span>
             <div>
-              <p className="text-sm font-semibold text-white">LeadFlow AI Assistant</p>
+              <p className="text-sm font-semibold text-white">PRIMELEAD AI Assistant</p>
               <p className="text-xs text-slate-400">English · Hinglish · हिन्दी</p>
             </div>
           </div>
@@ -469,7 +469,7 @@ function FreeTools() {
         <SectionTag>Free tools</SectionTag>
         <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Try before you buy — no signup needed</h2>
         <p className="mt-4 text-muted-foreground">
-          Start with our free tools and see the value. Upgrade to LeadFlow AI when you're ready for the full CRM experience.
+          Start with our free tools and see the value. Upgrade to PRIMELEAD AI when you're ready for the full CRM experience.
         </p>
       </div>
       <div className="mt-12 grid gap-6 md:grid-cols-2">

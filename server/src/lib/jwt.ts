@@ -22,3 +22,20 @@ export function verifySession(token: string): SessionPayload | null {
     return null;
   }
 }
+
+/** Short-lived token that proves the password step succeeded (MFA challenge). */
+export function signMfaToken(userId: string): string {
+  return jwt.sign({ userId, purpose: 'mfa' }, config.jwtSecret, {
+    expiresIn: `${config.mfaTokenTtlMinutes}m`,
+  });
+}
+
+export function verifyMfaToken(token: string): { userId: string } | null {
+  try {
+    const decoded = jwt.verify(token, config.jwtSecret) as { userId?: string; purpose?: string };
+    if (!decoded.userId || decoded.purpose !== 'mfa') return null;
+    return { userId: decoded.userId };
+  } catch {
+    return null;
+  }
+}

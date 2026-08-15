@@ -19,7 +19,7 @@ export function Logo({ dark = false }: { dark?: boolean }) {
         <Zap className="h-5 w-5" fill="currentColor" />
       </span>
       <span className={cn('text-lg font-extrabold tracking-tight', dark ? 'text-white' : 'text-foreground')}>
-        LeadFlow <span className="text-primary">AI</span>
+        PRIMELEAD <span className="text-primary">AI</span>
       </span>
     </Link>
   );

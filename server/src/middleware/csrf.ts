@@ -9,7 +9,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { randomToken } from '../lib/crypto';
 
-const COOKIE = 'lf_csrf';
+const COOKIE = 'pl_csrf';
 const HEADER = 'x-csrf-token';
 
 export function issueCsrf(res: Response) {
@@ -38,7 +38,11 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction) 
   const headerToken = req.headers[HEADER];
   if (!cookieToken || !headerToken || cookieToken !== headerToken) {
     return res.status(403).json({
-      error: { code: 'CSRF', message: 'Your session security token is missing or invalid. Please refresh the page.' },
+      error: {
+        code: 'CSRF',
+        message: 'Your session security token is missing or invalid. Please refresh the page.',
+        requestId: (res as any).locals?.requestId || '',
+      },
     });
   }
   next();

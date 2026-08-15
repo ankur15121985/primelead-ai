@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, ok, validate } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { writeFollowUp, isAiReady } from '../services/ai-followup';
 import { generateAssistantReply } from '../services/ai-chat';
 import { aiFollowUpSchema, aiChatSchema } from '../validators/schemas';
 import { sourceLabel } from '../constants';
 import { getOrgSetting } from '../services/assignment';
+import { paiseToRupees } from '../lib/money';
 
 const router = Router();
 
@@ -19,13 +20,14 @@ router.get(
     const user = (req as AuthedRequest).user;
     const orgAi = await getOrgSetting(user.orgId, 'ai');
     const orgConfigured = Boolean((orgAi as any)?.apiKey || (orgAi as any)?.configured);
-    return ok(res, { configured: isAiReady() || orgConfigured });
+    return ok(res, { configured: (await isAiReady(user.orgId)) || orgConfigured });
   })
 );
 
 router.post(
   '/follow-up',
   requireAuth,
+  requirePermission('ai.use'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(aiFollowUpSchema, req.body);
@@ -50,22 +52,13 @@ router.post(
       })
       .reverse();
 
-    const orgAi = (await getOrgSetting(user.orgId, 'ai')) || {};
-    const aiKey = (orgAi as any).apiKey;
-    const aiModel = (orgAi as any).model;
-
-    // Org-level key overrides the global env config for this request
-    if (aiKey) {
-      const { setAiOverride } = await import('../ai/provider');
-      setAiOverride({ apiKey: aiKey, model: aiModel || undefined });
-    }
-
-    const result = await writeFollowUp({
+    const result = await writeFollowUp(
+      {
       customerName: lead.name,
       leadSource: sourceLabel(lead.source),
       stage: stageName || lead.status,
       priority: lead.priority,
-      expectedValue: lead.expectedValue,
+      expectedValue: paiseToRupees(lead.expectedValue),
       productService: input.productService || lead.notes?.slice(0, 120),
       notes: lead.notes || '',
       lastContactDate: lead.lastContactedAt
@@ -77,7 +70,9 @@ router.post(
       channel: input.channel || 'whatsapp',
       tone: input.tone || 'friendly',
       language: input.language || 'hinglish',
-    });
+    },
+      user.orgId
+    );
     return ok(res, result);
   })
 );
@@ -123,6 +118,7 @@ router.get(
 router.post(
   '/chat',
   requireAuth,
+  requirePermission('ai.use'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(aiChatSchema, req.body);

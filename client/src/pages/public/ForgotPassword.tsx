@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export function ForgotPassword() {
-  useSeo('Forgot password — LeadFlow AI');
+  useSeo('Forgot password — PRIMELEAD AI');
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);

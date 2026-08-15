@@ -1,4 +1,4 @@
-// LeadFlow AI — Prisma schema
+// PRIMELEAD AI — Prisma schema
 // Local dev uses SQLite. For production, change the provider to "postgresql"
 // and the DATABASE_URL — everything else in the schema is Postgres-compatible.
 //
@@ -48,6 +48,8 @@ model Organization {
   payments     Payment[]
   referrals    Referral[] @relation("ReferrerOrg")
   referredBy   Referral? @relation("ReferredOrg")
+  roles        Role[]
+  teams        Team[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -63,13 +65,17 @@ model User {
   email        String
   phone        String?
   passwordHash String
-  role         String  @default("SALES") // OWNER | ADMIN | MANAGER | SALES
+  role         String  @default("SALES") // OWNER | ADMIN | MANAGER | SALES | ACCOUNTANT | SUPPORT | VIEWER | custom role key
   title        String?
+  teamId       String?
+  team         Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
   active       Boolean @default(true)
   emailVerifiedAt DateTime?
   avatarUrl    String?
   lastLoginAt  DateTime?
   lastAssignmentAt DateTime?
+  failedLoginAttempts Int    @default(0)
+  lockedUntil  DateTime?
 
   leads         Lead[]           @relation("LeadOwner")
   activities    Activity[]
@@ -77,12 +83,17 @@ model User {
   notifications Notification[]
   aiConversations AiConversation[]
   referrals     Referral[]
+  sessions      Session[]
+  mfa           MfaSecret?
+  recoveryCodes RecoveryCode[]
+  loginHistory  LoginHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([orgId, email])
   @@index([orgId, role])
+  @@index([orgId, teamId])
 }
 
 model OrgSetting {
@@ -121,7 +132,7 @@ model Lead {
   stage          PipelineStage? @relation(fields: [stageId], references: [id])
   priority       String       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
   score          Int          @default(0)
-  expectedValue  Float        @default(0)
+  expectedValue  Int          @default(0) // paise
   notes          String?
   tags           Json? // string[]
   customFields   Json? // Record<string, string>
@@ -324,10 +335,10 @@ model Quotation {
   phone       String?
   email       String?
   items       QuotationItem[]
-  discount    Float           @default(0)
-  gstSummary  Json? // { cgst, sgst, igst }
-  subtotal    Float           @default(0)
-  total       Float           @default(0)
+  discount    Int             @default(0) // paise
+  gstSummary  Json? // { cgst, sgst, igst } — paise
+  subtotal    Int             @default(0) // paise
+  total       Int             @default(0) // paise
   terms       String?
   validityDays Int            @default(15)
   status      String          @default("DRAFT") // DRAFT | SENT | ACCEPTED | REJECTED | EXPIRED | CONVERTED
@@ -345,13 +356,13 @@ model QuotationItem {
   quotation    Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
   description  String
   quantity     Float     @default(1)
-  rate         Float     @default(0)
+  rate         Int       @default(0) // paise
   discountPct  Float     @default(0)
   taxPct       Float     @default(0) // e.g. 18
-  cgst         Float     @default(0)
-  sgst         Float     @default(0)
-  igst         Float     @default(0)
-  amount       Float     @default(0)
+  cgst         Int       @default(0) // paise
+  sgst         Int       @default(0) // paise
+  igst         Int       @default(0) // paise
+  amount       Int       @default(0) // paise
   createdAt    DateTime  @default(now())
 }
 
@@ -369,11 +380,11 @@ model Invoice {
   gstin          String?
   hsnSac         String?
   items          InvoiceItem[]
-  discount       Float        @default(0)
-  gstSummary     Json?
-  subtotal       Float        @default(0)
-  total          Float        @default(0)
-  paidAmount     Float        @default(0)
+  discount       Int          @default(0) // paise
+  gstSummary     Json? // { cgst, sgst, igst } — paise
+  subtotal       Int          @default(0) // paise
+  total          Int          @default(0) // paise
+  paidAmount     Int          @default(0) // paise
   status         String       @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
   dueDate        DateTime?
   terms          String?
@@ -391,13 +402,13 @@ model InvoiceItem {
   description String
   hsnSac    String?
   quantity  Float   @default(1)
-  rate      Float   @default(0)
+  rate      Int     @default(0) // paise
   discountPct Float @default(0)
   taxPct    Float   @default(0)
-  cgst      Float   @default(0)
-  sgst      Float   @default(0)
-  igst      Float   @default(0)
-  amount    Float   @default(0)
+  cgst      Int     @default(0) // paise
+  sgst      Int     @default(0) // paise
+  igst      Int     @default(0) // paise
+  amount    Int     @default(0) // paise
   createdAt DateTime @default(now())
 }
 
@@ -486,7 +497,7 @@ model Referral {
   referredOrg     Organization? @relation("ReferredOrg", fields: [referredOrgId], references: [id])
   status          String       @default("PENDING") // PENDING | CONVERTED | PAID
   commissionPct   Float        @default(10) // percentage commission
-  commissionAmount Float       @default(0)
+  commissionAmount Int         @default(0) // paise
   notes           String?
   payouts         ReferralPayout[]
   createdAt       DateTime     @default(now())
@@ -500,7 +511,7 @@ model ReferralPayout {
   id          String   @id @default(cuid())
   referralId  String
   referral    Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
-  amount      Float
+  amount      Int      // paise
   currency    String   @default("INR")
   status      String   @default("PENDING") // PENDING | PAID | FAILED
   paidAt      DateTime?
@@ -539,8 +550,8 @@ model Plan {
   id           String  @id @default(cuid())
   slug         String  @unique // starter | growth | business
   name         String
-  priceMonthly Float
-  priceYearly  Float
+  priceMonthly Int // paise
+  priceYearly  Int // paise
   features     Json?
   active       Boolean @default(true)
   createdAt    DateTime @default(now())
@@ -570,12 +581,107 @@ model Payment {
   orgId             String
   org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   subscriptionId    String?
-  amount            Float
+  amount            Int // paise
   currency          String       @default("INR")
   status            String       @default("PENDING") // PENDING | SUCCEEDED | FAILED | REFUNDED
   provider          String?
   providerPaymentId String?
   createdAt         DateTime     @default(now())
 
+  @@index([orgId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Auth hardening: sessions, login history, MFA
+// ────────────────────────────────────────────────────────────
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  ip         String?
+  userAgent  String?
+  deviceName String?
+  lastUsedAt DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  orgId     String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  success   Boolean
+  ip        String?
+  userAgent String?
+  reason    String? // OK | BAD_PASSWORD | UNKNOWN_USER | LOCKED | ORG_SUSPENDED | MFA_OK | RECOVERY_OK
+  newDevice Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([email, createdAt])
+}
+
+model MfaSecret {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secret    String // TOTP base32 secret (server-side only)
+  createdAt DateTime @default(now())
+}
+
+model RecoveryCode {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ────────────────────────────────────────────────────────────
+// RBAC: configurable roles & permissions (per-org)
+// ────────────────────────────────────────────────────────────
+
+model Role {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  key         String // OWNER | ADMIN | MANAGER | SALES | ACCOUNTANT | SUPPORT | VIEWER | custom
+  name        String
+  description String?
+  isSystem    Boolean      @default(false)
+  permissions Json? // string[] — granular permission keys
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([orgId, key])
+  @@index([orgId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Teams (Org → Team → User)
+// ────────────────────────────────────────────────────────────
+
+model Team {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([orgId, name])
   @@index([orgId])
 }

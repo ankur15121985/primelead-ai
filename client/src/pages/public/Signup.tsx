@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/select';
 import { BUSINESS_TYPES } from '@/lib/constants';
 
 export function Signup() {
-  useSeo('Start Free — LeadFlow AI');
+  useSeo('Start Free — PRIMELEAD AI');
   const { signup } = useAuth();
   const { success, error } = useToast();
   const navigate = useNavigate();

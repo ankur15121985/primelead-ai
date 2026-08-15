@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, ok, validate } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { audit } from '../lib/audit';
 import { publicOrg } from '../lib/serializers';
 import { orgUpdateSchema } from '../validators/schemas';
@@ -39,6 +39,7 @@ const profileSchema = z.object({
 router.patch(
   '/org',
   requireAuth,
+  requirePermission('settings.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(orgUpdateSchema, req.body);
@@ -60,10 +61,11 @@ router.patch(
     const updated = await prisma.user.update({ where: { id: user.id }, data: input });
     return ok(res, { user: { id: updated.id, name: updated.name, phone: updated.phone, title: updated.title } });
   })
-);  router.post(
-    '/source-assignments',
-    requireAuth,
-    asyncHandler(async (req, res) => {
+);router.post(
+  '/source-assignments',
+  requireAuth,
+  requirePermission('settings.manage'),
+  asyncHandler(async (req, res) => {
       const user = (req as AuthedRequest).user;
       const input = validate(z.object({ rules: z.record(z.string().nullable()) }), req.body);
       // Every rule target must be a member of the organisation.
@@ -81,6 +83,7 @@ router.patch(
 router.post(
   '/ai',
   requireAuth,
+  requirePermission('ai.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(

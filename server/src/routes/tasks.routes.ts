@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, notFound, ok, validate } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { createFollowUp, completeFollowUp, syncOverdue, bucketTasks } from '../services/followups';
 import { taskCreateSchema, taskUpdateSchema } from '../validators/schemas';
 import { assertManagerOrAbove } from '../middleware/auth';
@@ -12,6 +12,7 @@ const router = Router();
 router.get(
   '/',
   requireAuth,
+  requirePermission('tasks.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const view = String(req.query.view || 'today');
@@ -56,6 +57,7 @@ router.get(
 router.post(
   '/',
   requireAuth,
+  requirePermission('tasks.create'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(taskCreateSchema, req.body);
@@ -82,6 +84,7 @@ router.post(
 router.patch(
   '/:id',
   requireAuth,
+  requirePermission('tasks.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(taskUpdateSchema, req.body);
@@ -117,6 +120,7 @@ router.patch(
 router.delete(
   '/:id',
   requireAuth,
+  requirePermission('tasks.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const task = await prisma.task.findFirst({ where: { id: req.params.id, orgId: user.orgId } });
@@ -134,6 +138,7 @@ router.delete(
 router.post(
   '/sync',
   requireAuth,
+  requirePermission('tasks.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const result = await syncOverdue(user.orgId);

@@ -1,5 +1,5 @@
 /**
- * Typed fetch wrapper for the LeadFlow API.
+ * Typed fetch wrapper for the PRIMELEAD API.
  * - Sends the double-submit CSRF token on state-changing requests
  * - Always sends credentials (session cookie)
  * - Throws a friendly ApiError with status + code
@@ -38,7 +38,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
     body = JSON.stringify(opts.body);
   }
 
-  const csrf = readCookie('lf_csrf');
+  const csrf = readCookie('pl_csrf');
   if (csrf && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     headers['x-csrf-token'] = csrf;
   }
@@ -57,7 +57,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
     const err = (payload as { error?: { message?: string; code?: string } })?.error || {};
     if (res.status === 401 && !path.includes('/auth/me')) {
       // session expired — let the auth provider handle the redirect
-      window.dispatchEvent(new CustomEvent('lf:unauthorized'));
+      window.dispatchEvent(new CustomEvent('pl:unauthorized'));
     }
     throw new ApiError(err.message || 'Something went wrong. Please try again.', res.status, err.code || 'ERROR');
   }

@@ -4,7 +4,7 @@ import { QrCode, Download, ArrowRight, Sparkles, ShieldCheck, Zap, Smartphone } 
 import { useSeo } from '@/hooks/use-seo';
 
 export function QRGenerator() {
-  useSeo('Free QR Code Generator — LeadFlow AI', 'Generate professional QR codes for your business in seconds. No signup required. Perfect for shop counters, exhibitions, pamphlets and visiting cards.');
+  useSeo('Free QR Code Generator — PRIMELEAD AI', 'Generate professional QR codes for your business in seconds. No signup required. Perfect for shop counters, exhibitions, pamphlets and visiting cards.');
   
   const [text, setText] = useState('');
   const [size, setSize] = useState(300);
@@ -139,7 +139,7 @@ export function QRGenerator() {
       <div className="mt-16 rounded-3xl border bg-slate-50 p-8 sm:p-10 text-center">
         <h2 className="text-2xl font-bold">Need more than just QR codes?</h2>
         <p className="mt-2 max-w-xl mx-auto text-muted-foreground">
-          LeadFlow AI includes QR lead capture, auto-assignment, follow-up reminders, and AI-powered messaging — all in one CRM built for Indian agencies.
+          PRIMELEAD AI includes QR lead capture, auto-assignment, follow-up reminders, and AI-powered messaging — all in one CRM built for Indian agencies.
         </p>
         <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
           <Link to="/signup">

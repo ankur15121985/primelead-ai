@@ -13,10 +13,11 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, ok, validate } from '../lib/http';
-import { requireAuth, assertAdminOrAbove, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, assertAdminOrAbove, type AuthedRequest } from '../middleware/auth';
 import { billingUpgradeSchema } from '../validators/schemas';
 import { audit } from '../lib/audit';
 import { config } from '../config';
+import { paiseToRupees } from '../lib/money';
 
 const router = Router();
 router.use(requireAuth);
@@ -26,8 +27,8 @@ function publicPlan(p: any) {
     id: p.id,
     slug: p.slug,
     name: p.name,
-    priceMonthly: p.priceMonthly,
-    priceYearly: p.priceYearly,
+    priceMonthly: paiseToRupees(p.priceMonthly),
+    priceYearly: paiseToRupees(p.priceYearly),
     features: p.features || [],
   };
 }
@@ -61,7 +62,7 @@ router.get(
       currentPlan: currentPlan ? publicPlan(currentPlan) : null,
       payments: payments.map((p) => ({
         id: p.id,
-        amount: p.amount,
+        amount: paiseToRupees(p.amount),
         currency: p.currency,
         status: p.status,
         provider: p.provider,
@@ -77,6 +78,7 @@ router.get(
 
 router.post(
   '/upgrade',
+  requirePermission('billing.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertAdminOrAbove(user);
@@ -117,7 +119,7 @@ router.post(
         metadata: { plan: plan.slug, period: input.period, mode: 'demo' },
         req,
       });
-      return ok(res, { applied: true, mode: 'demo', plan: plan.slug, amount: price });
+      return ok(res, { applied: true, mode: 'demo', plan: plan.slug, amount: paiseToRupees(price) });
     }
 
     // Provider mode: return a session stub (implemented when gateway keys exist)
@@ -126,12 +128,13 @@ router.post(
       create: { orgId: user.orgId, planId: plan.id, status: 'TRIAL', period: input.period, provider: process.env.RAZORPAY_KEY_ID ? 'razorpay' : 'stripe' },
       update: { planId: plan.id, period: input.period, provider: process.env.RAZORPAY_KEY_ID ? 'razorpay' : 'stripe' },
     });
-    return ok(res, { applied: false, mode: 'provider', plan: plan.slug, amount: price, checkoutUrl: null });
+    return ok(res, { applied: false, mode: 'provider', plan: plan.slug, amount: paiseToRupees(price), checkoutUrl: null });
   })
 );
 
 router.post(
   '/cancel',
+  requirePermission('billing.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertAdminOrAbove(user);

@@ -52,7 +52,7 @@ export function Billing() {
     <div className="space-y-5">
       <PageHeader
         title="Billing & plan"
-        description="Manage your LeadFlow subscription. In demo mode plan changes apply instantly without payment."
+        description="Manage your PRIMELEAD subscription. In demo mode plan changes apply instantly without payment."
       />
 
       {/* Current subscription */}

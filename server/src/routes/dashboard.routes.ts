@@ -1,15 +1,18 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, ok } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { scopedWhere } from '../middleware/auth';
 import { OPEN_STATUSES } from '../constants';
+import { paiseToRupees } from '../lib/money';
+import { serializeLead } from '../services/leads';
 
 const router = Router();
 
 router.get(
   '/',
   requireAuth,
+  requirePermission('dashboard.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const scope = scopedWhere(user, user.orgId);
@@ -93,7 +96,7 @@ router.get(
       owners.filter((o) => o.role === 'SALES').slice(0, 5).map(async (o) => {
         const open = await prisma.lead.count({ where: { orgId: user.orgId, ownerId: o.id, deletedAt: null, status: { in: OPEN_STATUSES } } });
         const won = await prisma.lead.aggregate({ where: { orgId: user.orgId, ownerId: o.id, deletedAt: null, status: 'WON' }, _sum: { expectedValue: true } });
-        return { name: o.name, open, wonValue: won._sum.expectedValue || 0 };
+        return { name: o.name, open, wonValue: paiseToRupees(won._sum.expectedValue || 0) };
       })
     );
     topSalespeople.sort((a, b) => b.wonValue - a.wonValue || b.open - a.open);
@@ -133,8 +136,8 @@ router.get(
       cards: {
         totalLeads, newLeads, qualifiedLeads, wonLeads, openLeads,
         weekLeads, monthLeads,
-        pipelineValue: pipelineValue._sum.expectedValue || 0,
-        revenue: revenue._sum.expectedValue || 0,
+        pipelineValue: paiseToRupees(pipelineValue._sum.expectedValue || 0),
+        revenue: paiseToRupees(revenue._sum.expectedValue || 0),
         conversionRate,
         overdue: overdueCount,
         today: todayCount,
@@ -150,7 +153,7 @@ router.get(
       lists: {
         todaysTasks,
         overdueTasks,
-        recentLeads,
+        recentLeads: recentLeads.map(serializeLead),
         recentActivity,
       },
     });

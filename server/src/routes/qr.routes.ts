@@ -11,7 +11,7 @@ import { Router } from 'express';
 import QRCode from 'qrcode';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, ok, validate, badRequest } from '../lib/http';
-import { requireAuth, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
 import { qrCreateSchema, qrUpdateSchema } from '../validators/schemas';
 import { config } from '../config';
 import { audit } from '../lib/audit';
@@ -177,6 +177,7 @@ router.get(
 
 router.patch(
   '/:id',
+  requirePermission('qr.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);
@@ -216,6 +217,7 @@ router.patch(
 
 router.delete(
   '/:id',
+  requirePermission('qr.manage'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);

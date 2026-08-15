@@ -93,17 +93,19 @@ export const taskUpdateSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
 });
 
+// Roles are validated server-side against the org's Role table (system or custom).
 export const teamInviteSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email('Enter a valid email'),
-  role: z.enum(roleValues as [string, ...string[]]),
+  role: z.string().trim().min(1).max(40),
   password: passwordSchema.optional(),
 });
 
 export const teamUpdateSchema = z.object({
-  role: z.enum(roleValues as [string, ...string[]]).optional(),
+  role: z.string().trim().min(1).max(40).optional(),
   active: z.boolean().optional(),
   title: z.string().max(80).optional(),
+  teamId: z.string().optional().nullable(),
 });
 
 export const orgUpdateSchema = z.object({

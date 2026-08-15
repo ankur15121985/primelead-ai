@@ -53,7 +53,7 @@ export function AdminOverview() {
     <div className="space-y-6">
       <PageHeader
         title="Platform overview"
-        description="Everything running on this LeadFlow instance — across all organizations."
+        description="Everything running on this PRIMELEAD instance — across all organizations."
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">

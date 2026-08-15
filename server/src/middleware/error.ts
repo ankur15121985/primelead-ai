@@ -2,9 +2,14 @@ import type { NextFunction, Request, Response } from 'express';
 import { ApiError } from '../lib/http';
 import { recordError } from '../lib/server-log';
 
+function requestIdOf(res: Response): string {
+  return (res as any).locals?.requestId || '';
+}
+
 /**
  * Central error handler — never leaks raw server errors to the client.
- * Every error is mapped to a friendly message + a stable error code.
+ * Every error is mapped to a friendly message + a stable error code +
+ * a requestId so support conversations can reference a specific failure.
  */
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   // Surface real 4xx/5xx to the admin error feed (quietly, never to clients).
@@ -17,14 +22,18 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       message: err instanceof Error ? err.message : 'Unknown error',
       status: errStatus,
       code: err instanceof ApiError ? err.code : 'INTERNAL',
+      requestId: requestIdOf(res),
     });
   }
+
+  const requestId = requestIdOf(res);
 
   if (err instanceof ApiError) {
     return res.status(err.status).json({
       error: {
         code: err.code,
         message: err.message,
+        requestId,
         ...(err.details ? { details: err.details } : {}),
       },
     });
@@ -33,13 +42,13 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   // Body-parser / multer style errors
   const anyErr = err as { type?: string; code?: string; status?: number; message?: string };
   if (anyErr?.type === 'entity.too.large' || anyErr?.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'The upload is too large.' } });
+    return res.status(413).json({ error: { code: 'PAYLOAD_TOO_LARGE', message: 'The upload is too large.', requestId } });
   }
   if (anyErr?.code === 'P2002') {
-    return res.status(409).json({ error: { code: 'CONFLICT', message: 'This record already exists.' } });
+    return res.status(409).json({ error: { code: 'CONFLICT', message: 'This record already exists.', requestId } });
   }
   if (anyErr?.code === 'P2025') {
-    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Record not found.' } });
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Record not found.', requestId } });
   }
 
   // eslint-disable-next-line no-console
@@ -49,10 +58,17 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     error: {
       code: status === 500 ? 'INTERNAL' : 'ERROR',
       message: status === 500 ? 'Something went wrong on our side. Please try again.' : anyErr?.message || 'Something went wrong.',
+      requestId,
     },
   });
 }
 
 export function notFoundHandler(req: Request, res: Response) {
-  res.status(404).json({ error: { code: 'NOT_FOUND', message: `Route ${req.method} ${req.originalUrl} not found.` } });
+  res.status(404).json({
+    error: {
+      code: 'NOT_FOUND',
+      message: `Route ${req.method} ${req.originalUrl} not found.`,
+      requestId: requestIdOf(res),
+    },
+  });
 }

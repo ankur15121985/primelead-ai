@@ -6,7 +6,7 @@ import {
 import { useSeo } from '@/hooks/use-seo';
 
 export function LeadSources() {
-  useSeo('Lead Sources — LeadFlow AI', 'Connect every channel — website, WhatsApp, IndiaMART, JustDial, QR codes and more — into one lead inbox.');
+  useSeo('Lead Sources — PRIMELEAD AI', 'Connect every channel — website, WhatsApp, IndiaMART, JustDial, QR codes and more — into one lead inbox.');
 
   const sources = [
     { icon: Globe, name: 'Website forms', desc: 'Embed a lead form or add a Zapier/Webhook step — form submissions become leads instantly.' },
@@ -18,7 +18,7 @@ export function LeadSources() {
     { icon: Briefcase, name: 'TradeIndia', desc: 'B2B enquiries captured with company details for faster qualification.' },
     { icon: Building2, name: 'Property portals', desc: 'For builders and agents — portal enquiries become pipeline deals.' },
     { icon: ShoppingBag, name: 'Shopify', desc: 'New orders and abandoned carts can feed your sales team.' },
-    { icon: Zap, name: 'Zapier & webhooks', desc: 'If a tool can send a webhook, LeadFlow can receive it. 8,000+ apps, no code.' },
+    { icon: Zap, name: 'Zapier & webhooks', desc: 'If a tool can send a webhook, PRIMELEAD can receive it. 8,000+ apps, no code.' },
     { icon: QrCode, name: 'QR code forms', desc: 'Print, scan, done. Perfect for shop counters, exhibitions, pamphlets and site visits.' },
     { icon: FileSpreadsheet, name: 'CSV / Excel import', desc: 'Already tracking leads in Excel? Import with headers and we\'ll deduplicate.' },
     { icon: UserPlus, name: 'Manual entry', desc: 'Capture a walk-in customer in under 10 seconds on mobile.' },
@@ -30,7 +30,7 @@ export function LeadSources() {
         <span className="inline-block rounded-full bg-primary/10 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary">Lead Sources</span>
         <h1 className="mt-4 text-4xl font-extrabold tracking-tight">Every channel. One inbox.</h1>
         <p className="mt-4 text-lg text-muted-foreground">
-          LeadFlow collects enquiries from everywhere your customers already are — so you never ask "did anyone reply to that DM?"
+          PRIMELEAD collects enquiries from everywhere your customers already are — so you never ask "did anyone reply to that DM?"
         </p>
       </div>
 
@@ -53,7 +53,7 @@ export function LeadSources() {
             <h2 className="text-2xl font-bold tracking-tight">One inbound webhook for everything else</h2>
             <p className="mt-2 max-w-xl text-muted-foreground">
               Every source runs through the same pipeline: <strong>verify → validate → deduplicate → assign → follow-up → notify</strong>.
-              Custom REST APIs and webhook endpoints make LeadFlow the hub of your sales stack.
+              Custom REST APIs and webhook endpoints make PRIMELEAD the hub of your sales stack.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               {['Verify source', 'Normalize lead', 'Detect duplicates', 'Auto-assign owner', 'Create follow-up', 'Log activity', 'Notify salesperson'].map((step) => (

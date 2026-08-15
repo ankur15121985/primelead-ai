@@ -1,4 +1,4 @@
-# LeadFlow AI — Developer & Maintenance Guide
+# PRIMELEAD AI — Developer & Maintenance Guide
 
 > **For developers and the website handler who maintain this platform.** Covers architecture, running locally, the super-admin panel, operational tasks, deployment and troubleshooting.
 
@@ -19,17 +19,20 @@ Companion docs: **[USER_GUIDE.md](./USER_GUIDE.md)** (end users) · **[../README
 
 - **npm workspaces**: root `Compute/` → `server/` + `client/`
 - **Multi-tenant**: every business entity carries `orgId`. The org is always resolved from the **session**, never from client input. Salespeople are scoped to their own leads (`scopedWhere`).
-- **Auth**: bcrypt password hashes · JWT in an httpOnly `SameSite=Lax` cookie (`lf_session`) · double-submit CSRF (`lf_csrf` cookie + `x-csrf-token` header) · rate limiting · helmet.
-- **AI**: a single provider abstraction in `server/src/ai/provider.ts` (OpenAI-compatible). No vendor code anywhere else.
+- **Auth**: bcrypt password hashes · **DB-backed revocable sessions** (opaque token in the httpOnly `SameSite=Lax` cookie `pl_session`, SHA-256 hash stored server-side) · double-submit CSRF (`pl_csrf` cookie + `x-csrf-token` header) · rate limiting · helmet · **optional TOTP MFA** (otplib) with single-use recovery codes · account lock-out · login history.
+- **RBAC**: config-driven — 7 system roles + custom roles per org, with a granular permission catalog (`server/src/constants/rbac.ts`, `server/src/services/rbac.ts`). `requirePermission(...)` gates routes; `requireAuth` attaches the resolved permission set to the request.
+- **Money**: stored as **integer paise** everywhere (`server/src/lib/money.ts`), converted to rupees only at the API boundary (`server/src/lib/serializers.ts`). The GST engine (`server/src/services/gst.ts`) computes in paise — never floats.
+- **Request IDs**: `middleware/request-id.ts` stamps every request; the id is echoed in the `X-Request-Id` header, the error envelope and the server log.
+- **AI**: a single provider abstraction in `server/src/ai/provider.ts` (OpenAI-compatible). Provider + key resolve **per-org from org settings** — org A's key can never answer org B's requests. No vendor code anywhere else.
 
 ### Key folders (server)
 
 | Path | Purpose |
 |---|---|
-| `server/src/routes/` | Express routers (auth, leads, pipeline, tasks, dashboard, notifications, team, settings, ai, qr, public, **admin**, misc) |
-| `server/src/services/` | Business logic (assignment engine, follow-up engine, leads w/ dedupe, GST, AI writer, onboarding) |
-| `server/src/middleware/` | `auth` (RBAC + org isolation), `admin` (super-admin gate), `csrf`, `rate-limit`, `error` |
-| `server/src/lib/` | prisma, jwt, passwords, crypto, http, mailer, audit, serializers, **server-log** (admin error feed) |
+| `server/src/routes/` | Express routers (auth + MFA/sessions, roles, teams, leads, pipeline, tasks, dashboard, notifications, team, settings, ai, qr, public, **admin**, misc) |
+| `server/src/services/` | Business logic (assignment engine, follow-up engine, leads w/ dedupe, GST in paise, RBAC, AI writer, onboarding) |
+| `server/src/middleware/` | `auth` (sessions + RBAC + org isolation), `admin` (super-admin gate), `csrf`, `rate-limit`, `request-id`, `error` |
+| `server/src/lib/` | prisma, sessions (revocable), jwt, passwords, crypto, money (paise), http, mailer, audit, serializers, **server-log** (admin error feed) |
 | `server/src/validators/` | zod schemas (every route validates input → friendly 422s) |
 | `server/prisma/` | schema + migrations + seed |
 | `server/src/tests/` | vitest + supertest API tests |
@@ -60,7 +63,7 @@ npm run db:seed                        # demo org + realistic sample data
 npm run dev                            # API :4000 + web :5173 together
 ```
 
-Open http://localhost:5173 — demo login `owner@leadflow.demo` / `Demo@1234`.
+Open http://localhost:5173 — demo login `owner@primelead.demo` / `Demo@1234`.
 
 ### Useful scripts
 
@@ -132,7 +135,8 @@ Admin actions are written to the **audit log** of the affected org (action, acto
 
 Conventions:
 - Every business entity has `orgId` → hard tenant isolation.
-- Money stored as `Float` (₹) — move to `Decimal`/paise with Postgres.
+- **Money is stored as integer paise** (`Int`) — never floats. Convert at the API boundary (`serializers.ts` / `money.ts`).
+- Sessions, login history, MFA secrets, recovery codes, roles and teams are all org/user-scoped rows in the DB.
 - Leads have **soft delete** (`deletedAt`).
 - `@@unique([orgId, phone])` and `@@unique([orgId, email])` back the duplicate detection.
 
@@ -147,26 +151,28 @@ npm run db:seed             # reset demo data (idempotent)
 
 ### Seed data
 
-`server/prisma/seed.ts` creates: 3 pricing plans, a demo org (Sharma Enterprises, `owner@leadflow.demo` / `Demo@1234`), owner/manager/2 salespeople, 12 sample leads with varied sources/stages, follow-ups, and a demo **Shop Counter QR campaign**.
+`server/prisma/seed.ts` creates: 3 pricing plans (paise prices), the 7 system roles for the demo org, a demo org (Sharma Enterprises, `owner@primelead.demo` / `Demo@1234`), owner/manager/2 salespeople, 12 sample leads with varied sources/stages, follow-ups, and a demo **Shop Counter QR campaign**.
 
 ---
 
 ## 5. Security model (what you must never break)
 
 1. **Org isolation** — `orgId` comes from `requireAuth` (session), never from the request body. All queries filter by it.
-2. **RBAC is enforced server-side** — `requireRole`, `assertManagerOrAbove`, `assertAdminOrAbove`. Client checks are cosmetic only.
+2. **RBAC is enforced server-side** — `requirePermission('x.y')` + hierarchy guards (`assertManagerOrAbove`, `assertAdminOrAbove`) + the permission catalog in `constants/rbac.ts`. Client checks are cosmetic only. Custom roles are validated against the org's `Role` table.
 3. **Salesperson scoping** — `scopedWhere()` limits SALES users to their own leads. Keep using it in new routes.
-4. **CSRF** — every state-changing request needs the `lf_csrf` cookie token echoed in `x-csrf-token`. Note: **`GET /auth/me` rotates the cookie** — always re-read the token after a `/me` call (see the tests).
-5. **Never leak** — the error handler maps everything to friendly messages; raw errors go only to the console + admin feed.
-6. **Secrets** — API keys live server-side only (Settings → AI stores them, never returns them). Never log env vars.
+4. **Sessions** — revoke-able DB rows; a revoked session stops authenticating immediately. Password reset / change revokes sessions; MFA challenges never issue a session until the code verifies.
+5. **CSRF** — every state-changing request needs the `pl_csrf` cookie token echoed in `x-csrf-token`. The token is stable for the session (not rotated on `/me`) — but keep sending it on every state-changing call.
+6. **Never leak** — the error handler maps everything to friendly messages and attaches a `requestId`; raw errors go only to the console + admin feed.
+7. **Secrets** — API keys live server-side only (Settings → AI stores them, never returns them), AI provider resolution is per-org, and MFA secrets/TOTP recovery hashes never leave the server. Never log env vars.
 
 ### Security checklist when adding a route
 
 - [ ] Validate input with a zod schema (→ `validate()`)
-- [ ] Gate with `requireAuth` (+ role guard if needed)
+- [ ] Gate with `requireAuth` (+ `requirePermission('...')` if the action maps to a catalog permission)
 - [ ] Scope every query by `user.orgId` (and `scopedWhere` for SALES)
 - [ ] Audit sensitive actions with `audit({...})`
 - [ ] Rate-limit anything public (see `publicLeadLimiter`)
+- [ ] Money in, money out — convert rupees ↔ paise at the boundary; never store floats
 
 ---
 
@@ -195,7 +201,13 @@ npm run db:seed             # reset demo data (idempotent)
 - `routes/reports.routes.ts` — org-scoped aggregations, `fillDays` zero-fills the trend, date range clamped to **366 days**.
 
 ### Billing
-- `routes/billing.routes.ts` — provider-agnostic. Demo mode applies instantly with a `PENDING` Payment row; with `RAZORPAY_KEY_ID`/`STRIPE_SECRET_KEY` it prepares a subscription and returns `mode: 'provider'`.
+- `routes/billing.routes.ts` — provider-agnostic. Demo mode applies instantly with a `PENDING` Payment row; with `RAZORPAY_KEY_ID`/`STRIPE_SECRET_KEY` it prepares a subscription and returns `mode: 'provider'`. Amounts are paise throughout.
+
+### Roles & teams (Phase 1)
+- `services/rbac.ts` + `constants/rbac.ts` — `seedOrgRoles` creates the 7 system roles on signup; `rolePermissions(orgId, key)` resolves a user's effective permission set (custom roles read from the `Role` table). `requirePermission` blocks without the right permission.
+- `routes/roles.routes.ts` — list/create/edit/delete custom roles (`roles.manage`); system roles are read-only; the Owner role can't be edited.
+- `routes/teams.routes.ts` — team CRUD (`teams.manage`). Deleting a team unassigns members (keeps them).
+- `User.teamId` is org-validated in `routes/team.routes.ts` — you can never attach a member to another org's team.
 
 ### Contacts & Calendar
 - Contacts: simple org-scoped CRUD (`routes/contacts.routes.ts`), lead links validated org-side.
@@ -207,7 +219,7 @@ npm run db:seed             # reset demo data (idempotent)
 npm test
 ```
 
-Current coverage (35 tests): GST math, lead scoring, signup/login, duplicate detection, auto-assignment (least-loaded + round-robin), pipeline moves + activity logging, follow-ups, CSV export, QR capture, **super-admin access control** (listed users allowed, others 403, org suspend/reactivate), CSRF enforcement, and cross-org isolation.
+Current coverage (71 tests): GST math (in paise), lead scoring, signup/login, duplicate detection, auto-assignment (least-loaded + round-robin), pipeline moves + activity logging, follow-ups, CSV export, QR capture, **super-admin access control** (listed users allowed, others 403, org suspend/reactivate), CSRF enforcement, cross-org isolation, **plus Phase 1**: request-ids in errors, session revocation & device management, account lock-out, login history, MFA enable/challenge/TOTP/recovery/disable, change-password (revokes other sessions), RBAC role seeding + custom-role enforcement, team CRUD + cross-org team rejection, and paise money boundaries.
 
 **How tests isolate the DB:** `api.test.ts` points `DATABASE_URL` at a throwaway SQLite file, `prisma db push`es the schema, and imports the app dynamically. It also sets `SUPER_ADMIN_EMAILS` so the test owner is the admin.
 
@@ -228,7 +240,7 @@ Env for production:
 ```env
 NODE_ENV=production
 PORT=4000
-DATABASE_URL=postgresql://user:pass@host:5432/leadflow
+DATABASE_URL=postgresql://user:pass@host:5432/primelead
 JWT_SECRET=<64+ random hex>      # node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 COOKIE_SECURE=true               # behind HTTPS
 CLIENT_ORIGIN=https://yourdomain.com
@@ -285,7 +297,7 @@ Serve `client/dist` from Nginx / Caddy / Cloudflare Pages with a `/api` reverse 
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `403 CSRF` on POST | Token rotated by a recent `/auth/me` | Re-fetch `lf_csrf` after `/me`; client does this automatically |
+| `403 CSRF` on POST | Token rotated by a recent `/auth/me` | Re-fetch `pl_csrf` after `/me`; client does this automatically |
 | `401` after login on one page | Session expired (7 days default) | `SESSION_MAX_AGE_DAYS` in env |
 | Tests fail with `test.db` locked | A vitest run crashed mid-write | Delete `server/prisma/test.db` and re-run |
 | Ports busy on `npm run dev` | Stale node processes | `taskkill //F //PID <pid>` on :4000/:5173 listeners |
@@ -299,7 +311,7 @@ Serve `client/dist` from Nginx / Caddy / Cloudflare Pages with a `/api` reverse 
 
 ### Free Tools (Lead Magnets)
 
-LeadFlow AI includes free tools that demonstrate value and capture leads:
+PRIMELEAD AI includes free tools that demonstrate value and capture leads:
 
 1. **QR Code Generator** (`/tools/qr-generator`)
    - Frontend-only tool using free QR API

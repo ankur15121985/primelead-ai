@@ -2,11 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api, ApiError } from '@/lib/api';
 import type { Org, User } from '@/types';
 
+export interface LoginResult {
+  user?: User;
+  org?: Org;
+  mfaRequired?: boolean;
+  mfaToken?: string;
+}
+
 interface AuthContextValue {
   user: User | null;
   org: Org | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<LoginResult>;
+  completeMfa: (mfaToken: string, code: string, recovery?: boolean) => Promise<void>;
   signup: (input: { name: string; email: string; password: string; orgName: string; businessType?: string }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -45,12 +53,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setOrg(null);
     };
-    window.addEventListener('lf:unauthorized', handler);
-    return () => window.removeEventListener('lf:unauthorized', handler);
+    window.addEventListener('pl:unauthorized', handler);
+    return () => window.removeEventListener('pl:unauthorized', handler);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const data = await api<{ user: User; org: Org }>('/auth/login', { body: { email, password } });
+    const data = await api<LoginResult>('/auth/login', { body: { email, password } });
+    // MFA challenge responses carry no session — only set state on a real session.
+    if (data.user && data.org) {
+      setUser(data.user);
+      setOrg(data.org);
+    }
+    return data;
+  }, []);
+
+  const completeMfa = useCallback(async (mfaToken: string, code: string, recovery = false) => {
+    const data = await api<{ user: User; org: Org }>(recovery ? '/auth/mfa/recovery' : '/auth/mfa/verify', {
+      body: { mfaToken, code },
+    });
     setUser(data.user);
     setOrg(data.org);
   }, []);
@@ -75,8 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, org, loading, login, signup, logout, refresh }),
-    [user, org, loading, login, signup, logout, refresh]
+    () => ({ user, org, loading, login, completeMfa, signup, logout, refresh }),
+    [user, org, loading, login, completeMfa, signup, logout, refresh]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

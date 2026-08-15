@@ -4,6 +4,7 @@
  */
 import { prisma } from '../lib/prisma';
 import { calculateTax, type TaxItem } from './gst';
+import { paiseToRupees } from '../lib/money';
 
 // pdfkit ships without bundled types; it's a pure-JS streaming PDF builder.
 const PDFDocument = require('pdfkit') as any;
@@ -39,21 +40,22 @@ export async function withNextNumber<T>(orgId: string, prefix: 'QT' | 'INV', cre
   }
 }
 
-/** Convert a Quotation row (with items) into a serializable DTO. */
+/** Convert a Quotation row (with items) into a serializable DTO (rupees). */
 export function serializeQuotation(row: any) {
   const items = (row.items || []).map((it: any) => ({
     id: it.id,
     description: it.description,
     quantity: it.quantity,
-    rate: it.rate,
+    rate: paiseToRupees(it.rate),
     discountPct: it.discountPct,
     taxPct: it.taxPct,
     gstType: it.cgst || it.igst ? (it.igst > 0 ? 'IGST' : 'CGST_SGST') : 'CGST_SGST',
-    cgst: it.cgst,
-    sgst: it.sgst,
-    igst: it.igst,
-    amount: it.amount,
+    cgst: paiseToRupees(it.cgst),
+    sgst: paiseToRupees(it.sgst),
+    igst: paiseToRupees(it.igst),
+    amount: paiseToRupees(it.amount),
   }));
+  const g = (row.gstSummary as any) || {};
   return {
     id: row.id,
     number: row.number,
@@ -66,10 +68,10 @@ export function serializeQuotation(row: any) {
     phone: row.phone,
     email: row.email,
     items,
-    discount: row.discount,
-    gstSummary: row.gstSummary || {},
-    subtotal: row.subtotal,
-    total: row.total,
+    discount: paiseToRupees(row.discount),
+    gstSummary: { cgst: paiseToRupees(g.cgst), sgst: paiseToRupees(g.sgst), igst: paiseToRupees(g.igst) },
+    subtotal: paiseToRupees(row.subtotal),
+    total: paiseToRupees(row.total),
     terms: row.terms,
     validityDays: row.validityDays,
     status: row.status,
@@ -85,15 +87,16 @@ export function serializeInvoice(row: any) {
     description: it.description,
     hsnSac: it.hsnSac,
     quantity: it.quantity,
-    rate: it.rate,
+    rate: paiseToRupees(it.rate),
     discountPct: it.discountPct,
     taxPct: it.taxPct,
     gstType: it.cgst || it.igst ? (it.igst > 0 ? 'IGST' : 'CGST_SGST') : 'CGST_SGST',
-    cgst: it.cgst,
-    sgst: it.sgst,
-    igst: it.igst,
-    amount: it.amount,
+    cgst: paiseToRupees(it.cgst),
+    sgst: paiseToRupees(it.sgst),
+    igst: paiseToRupees(it.igst),
+    amount: paiseToRupees(it.amount),
   }));
+  const g = (row.gstSummary as any) || {};
   return {
     id: row.id,
     number: row.number,
@@ -105,12 +108,12 @@ export function serializeInvoice(row: any) {
     billingAddress: row.billingAddress,
     gstin: row.gstin,
     items,
-    discount: row.discount,
-    gstSummary: row.gstSummary || {},
-    subtotal: row.subtotal,
-    total: row.total,
-    paidAmount: row.paidAmount,
-    balanceDue: Math.max(0, Math.round((row.total - row.paidAmount) * 100) / 100),
+    discount: paiseToRupees(row.discount),
+    gstSummary: { cgst: paiseToRupees(g.cgst), sgst: paiseToRupees(g.sgst), igst: paiseToRupees(g.igst) },
+    subtotal: paiseToRupees(row.subtotal),
+    total: paiseToRupees(row.total),
+    paidAmount: paiseToRupees(row.paidAmount),
+    balanceDue: Math.max(0, paiseToRupees(row.total) - paiseToRupees(row.paidAmount)),
     status: row.status,
     dueDate: row.dueDate,
     terms: row.terms,
@@ -119,7 +122,11 @@ export function serializeInvoice(row: any) {
   };
 }
 
-/** Compute line amounts + document totals using the GST engine. */
+/**
+ * Compute line amounts + document totals using the GST engine.
+ * Inputs and outputs are INTEGER paise (rates and discount converted from
+ * rupees by the route layer).
+ */
 export function computeDocumentTotals(items: Array<{ description: string; quantity: number; rate: number; discountPct?: number; taxPct?: number; gstType?: string }>, discount = 0) {
   const result = calculateTax(items as TaxItem[], discount);
   return {
@@ -146,8 +153,9 @@ export function formatINR(n: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);
 }
 
-function money(n: number): string {
-  return formatINR(n);
+/** PDF rendering receives paise — display as rupees. */
+function money(paise: number): string {
+  return formatINR(paiseToRupees(paise));
 }
 
 /**

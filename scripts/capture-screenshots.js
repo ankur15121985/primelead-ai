@@ -36,7 +36,7 @@ async function login(page) {
   const passwordInput = await page.$('input[type="password"], input[name="password"]');
   
   if (emailInput && passwordInput) {
-    await emailInput.fill('owner@leadflow.demo');
+    await emailInput.fill('owner@primelead.demo');
     await passwordInput.fill('Demo@1234');
     
     // Click login button

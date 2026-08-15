@@ -11,9 +11,10 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, notFound, ok, validate } from '../lib/http';
-import { requireAuth, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
 import { invoiceCreateSchema, invoiceUpdateSchema, invoicePaymentSchema } from '../validators/schemas';
 import { withNextNumber, serializeInvoice, computeDocumentTotals, renderDocumentPdf } from '../services/documents';
+import { rupeesToPaise, paiseToRupees } from '../lib/money';
 import { audit } from '../lib/audit';
 import { notify } from '../lib/serializers';
 
@@ -31,6 +32,7 @@ function docWhere(user: { role: string; id: string }, orgId: string, extra: Reco
 
 router.get(
   '/',
+  requirePermission('invoices.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const q = req.query as Record<string, string>;
@@ -57,13 +59,14 @@ router.get(
     const totalValue = await prisma.invoice.aggregate({ where: { ...base } as any, _sum: { total: true } });
     return ok(res, {
       invoices: rows.map(serializeInvoice),
-      counts: { total, paid: paidCount, pending: pendingCount, overdue: overdueCount, totalValue: totalValue._sum.total || 0 },
+      counts: { total, paid: paidCount, pending: pendingCount, overdue: overdueCount, totalValue: paiseToRupees(totalValue._sum.total || 0) },
     });
   })
 );
 
 router.post(
   '/',
+  requirePermission('invoices.create'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(invoiceCreateSchema, req.body);
@@ -76,9 +79,11 @@ router.post(
       if (!q) throw badRequest('The linked quotation was not found.');
     }
 
-    const calc = computeDocumentTotals(input.items, input.discount);
+    // API boundary: rates, discount and paid amount arrive in rupees → paise.
+    const itemsPaise = input.items.map((it) => ({ ...it, rate: rupeesToPaise(it.rate) }));
+    const calc = computeDocumentTotals(itemsPaise, rupeesToPaise(input.discount || 0));
     let status = input.status || 'DRAFT';
-    let paidAmount = input.paidAmount || 0;
+    let paidAmount = rupeesToPaise(input.paidAmount || 0);
     if (input.status === 'SENT' && paidAmount >= calc.total) status = 'PAID';
     if (input.status === 'PAID') paidAmount = calc.total;
 
@@ -129,7 +134,7 @@ router.post(
           userId: user.id,
           type: 'INVOICE',
           title: 'Invoice created',
-          body: `${invoice.number} for ${formatINR(invoice.total)}`,
+          body: `${invoice.number} for ${formatINR(paiseToRupees(invoice.total))}`,
         },
       });
     }
@@ -139,6 +144,7 @@ router.post(
 
 router.get(
   '/:id',
+  requirePermission('invoices.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const invoice = await prisma.invoice.findFirst({
@@ -152,16 +158,19 @@ router.get(
 
 router.patch(
   '/:id',
+  requirePermission('invoices.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(invoiceUpdateSchema, req.body);
     const existing = await prisma.invoice.findFirst({ where: { id: req.params.id, ...docWhere(user, user.orgId) }, include: { items: true } });
     if (!existing) throw notFound('Invoice not found');
 
-    const items = input.items || (existing.items as any[]);
-    const calc = computeDocumentTotals(items, input.discount ?? existing.discount);
+    const itemsPaise = (input.items || (existing.items as any[])).map((it: any) =>
+      input.items ? { ...it, rate: rupeesToPaise(it.rate) } : it
+    );
+    const calc = computeDocumentTotals(itemsPaise, input.discount !== undefined ? rupeesToPaise(input.discount) : existing.discount);
     let status = input.status ?? existing.status;
-    let paidAmount = input.paidAmount ?? existing.paidAmount;
+    let paidAmount = input.paidAmount !== undefined ? rupeesToPaise(input.paidAmount) : existing.paidAmount;
     if (input.status === 'PAID') paidAmount = calc.total;
     else if (status === 'DRAFT') paidAmount = 0;
 
@@ -210,6 +219,7 @@ router.patch(
 
 router.delete(
   '/:id',
+  requirePermission('invoices.delete'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     assertManagerOrAbove(user);
@@ -224,6 +234,7 @@ router.delete(
 /** Record a payment; auto-advances status to PARTIALLY_PAID / PAID. */
 router.post(
   '/:id/payment',
+  requirePermission('invoices.pay'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(invoicePaymentSchema, req.body);
@@ -231,7 +242,7 @@ router.post(
     if (!invoice) throw notFound('Invoice not found');
     if (invoice.status === 'CANCELLED') throw badRequest('A cancelled invoice cannot accept payments.');
 
-    const paidAmount = Math.min(invoice.total, Math.round((invoice.paidAmount + input.paidAmount) * 100) / 100);
+    const paidAmount = Math.min(invoice.total, invoice.paidAmount + rupeesToPaise(input.paidAmount));
     const status = paidAmount >= invoice.total ? 'PAID' : invoice.status === 'DRAFT' ? 'SENT' : 'PARTIALLY_PAID';
     const updated = await prisma.invoice.update({
       where: { id: invoice.id },
@@ -243,7 +254,7 @@ router.post(
       data: {
         orgId: user.orgId,
         subscriptionId: null,
-        amount: input.paidAmount,
+        amount: rupeesToPaise(input.paidAmount),
         status: 'SUCCEEDED',
         provider: 'MANUAL',
       },
@@ -256,7 +267,7 @@ router.post(
         userId: user.id,
         type: 'INVOICE_OVERDUE' as any, // reuse bell; content is friendly
         title: 'Invoice paid in full 🎉',
-        body: `${invoice.number} is fully paid (${formatINR(invoice.total)}).`,
+        body: `${invoice.number} is fully paid (${formatINR(paiseToRupees(invoice.total))}).`,
         link: `/app/invoices/${invoice.id}`,
       });
     }
@@ -266,6 +277,7 @@ router.post(
 
 router.get(
   '/:id/pdf',
+  requirePermission('invoices.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const invoice = await prisma.invoice.findFirst({

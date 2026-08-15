@@ -10,6 +10,7 @@ import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import request from 'supertest';
+import { generate as generateTotp } from 'otplib';
 
 const TEST_DB = path.join(__dirname, '..', '..', 'prisma', 'test.db');
 
@@ -26,6 +27,11 @@ function resetDb() {
   process.env.DATABASE_URL = `file:${TEST_DB.replace(/\\/g, '/')}`;
   // The test owner is the website super-admin for admin-route tests.
   process.env.SUPER_ADMIN_EMAILS = 'owner@test.com';
+  // Keep the login throttle out of the way across many tests, but keep the
+  // per-user account lock small so the lockout behaviour is testable.
+  process.env.LOGIN_RATE_LIMIT = '500';
+  process.env.LOGIN_MAX_ATTEMPTS = '5';
+  process.env.LOGIN_LOCK_MINUTES = '15';
   execSync('npx prisma db push --skip-generate --accept-data-loss', {
     cwd: path.join(__dirname, '..', '..'),
     stdio: 'pipe',
@@ -45,8 +51,8 @@ beforeAll(async () => {
   await prismaMod.prisma.plan.createMany({
     data: [
       { slug: 'starter', name: 'Starter', priceMonthly: 0, priceYearly: 0 },
-      { slug: 'growth', name: 'Growth', priceMonthly: 1499, priceYearly: 14990 },
-      { slug: 'business', name: 'Business', priceMonthly: 3999, priceYearly: 39990 },
+      { slug: 'growth', name: 'Growth', priceMonthly: 149900, priceYearly: 1499000 },
+      { slug: 'business', name: 'Business', priceMonthly: 399900, priceYearly: 3999000 },
     ],
   });
 });
@@ -56,16 +62,30 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-/** Prime the CSRF cookie (GET = page load) and return the token. */
+/**
+ * Prime the CSRF cookie (GET = page load) and return the token.
+ * The token is stable per agent (rotated only on successful /me), so a
+ * remembered fallback keeps state-changing calls working after logout/reset
+ * when the server no longer re-issues the cookie on 401s.
+ */
+const rememberedCsrf = new WeakMap<object, string>();
 async function getCsrf(a: ReturnType<typeof request.agent> = agent): Promise<string> {
   const res = await a.get('/api/auth/me').catch(() => null);
   const cookies = (res?.headers['set-cookie'] as unknown as string[]) || [];
-  const csrf = cookies.find((c) => c.startsWith('lf_csrf='));
-  if (csrf) return csrf.split(';')[0].replace('lf_csrf=', '');
+  const fresh = cookies.find((c) => c.startsWith('pl_csrf='));
+  if (fresh) {
+    const token = fresh.split(';')[0].replace('pl_csrf=', '');
+    rememberedCsrf.set(a, token);
+    return token;
+  }
+  const remembered = rememberedCsrf.get(a);
+  if (remembered) return remembered;
   const me = await a.get('/api/auth/me');
   const c2 = (me.headers['set-cookie'] as unknown as string[]) || [];
-  const second = c2.find((c) => c.startsWith('lf_csrf='));
-  return second ? second.split(';')[0].replace('lf_csrf=', '') : '';
+  const second = c2.find((c) => c.startsWith('pl_csrf='));
+  const token = second ? second.split(';')[0].replace('pl_csrf=', '') : '';
+  if (token) rememberedCsrf.set(a, token);
+  return token;
 }
 
 describe('Auth', () => {
@@ -81,7 +101,7 @@ describe('Auth', () => {
     expect(res.status).toBe(201);
     expect(res.body.data.user.role).toBe('OWNER');
     expect(res.body.data.org.plan).toBe('STARTER');
-    expect((res.headers['set-cookie'] as unknown as string[]).some((c) => c.includes('lf_session'))).toBe(true);
+    expect((res.headers['set-cookie'] as unknown as string[]).some((c) => c.includes('pl_session'))).toBe(true);
   });
 
   it('rejects a duplicate email', async () => {
@@ -691,5 +711,410 @@ describe('Security & org isolation', () => {
     const bad = await badAgent.post('/api/auth/login').set('x-csrf-token', csrf).send({ email: 'x@x.com', password: 'y' });
     expect(bad.body.error.message).not.toContain('undefined');
     expect(bad.body.error.code).toBe('UNAUTHORIZED');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 1 — Auth hardening, sessions, MFA, RBAC, teams, paise money
+// ────────────────────────────────────────────────────────────────────────
+
+let signupSeq = 0;
+
+async function signupFresh(name: string, orgName: string, role = 'OWNER', password = 'StrongPass123') {
+  const a = request.agent(server);
+  const csrf = await getCsrf(a);
+  const email = `${name.toLowerCase().replace(/\s/g, '')}${++signupSeq}@test.com`;
+  const res = await a.post('/api/auth/signup').set('x-csrf-token', csrf).send({
+    name,
+    email,
+    password,
+    orgName,
+  });
+  expect(res.status).toBe(201);
+  return { agent: a, email, password };
+}
+
+async function loginAs(a: ReturnType<typeof request.agent>, email: string, password: string) {
+  const csrf = await getCsrf(a);
+  return a.post('/api/auth/login').set('x-csrf-token', csrf).send({ email, password });
+}
+
+describe('Phase 1 · request ids & session revocation', () => {
+  it('tags every request with a request id and includes it in errors', async () => {
+    const badAgent = request.agent(server);
+    const csrf = await getCsrf(badAgent);
+    const bad = await badAgent.post('/api/auth/login').set('x-csrf-token', csrf).send({ email: 'nope@test.com', password: 'x' });
+    expect(bad.status).toBe(401);
+    expect(bad.headers['x-request-id']).toBeTruthy();
+    expect(bad.body.error.requestId).toBe(bad.headers['x-request-id']);
+
+    // CSRF rejections carry the request id too
+    const noCsrf = await request(server).post('/api/auth/login').send({ email: 'x', password: 'y' });
+    expect(noCsrf.status).toBe(403);
+    expect(noCsrf.body.error.requestId).toBe(noCsrf.headers['x-request-id']);
+  });
+
+  it('lists active sessions and revoking the current one logs the user out', async () => {
+    const { agent: a, email, password } = await signupFresh('Session Tester', 'Session Org');
+    await loginAs(a, email, password);
+
+    const list = await a.get('/api/auth/sessions');
+    expect(list.status).toBe(200);
+    expect(list.body.data.sessions.length).toBeGreaterThanOrEqual(1);
+    const current = list.body.data.sessions.find((s: any) => s.current);
+    expect(current).toBeTruthy();
+
+    const csrf = await getCsrf(a);
+    const revoke = await a.post(`/api/auth/sessions/${current.id}/revoke`).set('x-csrf-token', csrf);
+    expect(revoke.status).toBe(200);
+
+    // the revoked session no longer authenticates
+    const after = await a.get('/api/leads');
+    expect(after.status).toBe(401);
+  });
+
+  it('revoking other sessions keeps the current one', async () => {
+    const { agent: a, email, password } = await signupFresh('Multi Device', 'Multi Org');
+    await loginAs(a, email, password);
+    await loginAs(a, email, password); // creates a second session, cookie now holds it
+
+    const csrf = await getCsrf(a);
+    const res = await a.post('/api/auth/sessions/revoke-others').set('x-csrf-token', csrf);
+    expect(res.status).toBe(200);
+    expect(res.body.data.revoked).toBeGreaterThanOrEqual(1);
+    expect((await a.get('/api/leads')).status).toBe(200);
+  });
+
+  it('password reset revokes every session', async () => {
+    const { prisma } = await import('../lib/prisma');
+    const { hashToken } = await import('../lib/crypto');
+    const { agent: a, email } = await signupFresh('Reset Tester', 'Reset Org');
+    const me = await a.get('/api/auth/me');
+    const userId = me.body.data.user.id;
+
+    const token = 'phase1-reset-token-abcdef';
+    await prisma.resetToken.create({
+      data: { userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+    });
+    const csrf = await getCsrf(a);
+    const reset = await a.post('/api/auth/reset-password').set('x-csrf-token', csrf).send({ token, password: 'NewPass1234' });
+    expect(reset.status).toBe(200);
+
+    // every prior session is dead
+    expect((await a.get('/api/leads')).status).toBe(401);
+    expect((await loginAs(a, email, 'NewPass1234')).status).toBe(200);
+  });
+
+  it('locks the account after repeated failed attempts', async () => {
+    const { agent: a, email, password } = await signupFresh('Lock Tester', 'Lock Org');
+    for (let i = 0; i < 5; i++) {
+      const fail = await loginAs(a, email, 'WrongPass123');
+      expect(fail.status).toBe(401);
+    }
+    // even the correct password is refused while locked
+    const locked = await loginAs(a, email, password);
+    expect(locked.status).toBe(401);
+    expect(locked.body.error.message.toLowerCase()).toContain('locked');
+
+    // failed attempts are visible in login history
+    const history = await a.get('/api/auth/login-history');
+    expect(history.status).toBe(200);
+    const badPassword = history.body.data.history.filter((h: any) => !h.success && h.reason === 'BAD_PASSWORD');
+    expect(badPassword.length).toBeGreaterThanOrEqual(5);
+    expect(history.body.data.history.some((h: any) => !h.success && h.reason === 'LOCKED')).toBe(true);
+  });
+
+  it('records login history on success', async () => {
+    const { agent: a, email, password } = await signupFresh('History Tester', 'History Org');
+    await loginAs(a, email, password);
+    const history = await a.get('/api/auth/login-history');
+    expect(history.body.data.history.some((h: any) => h.success && h.reason === 'OK')).toBe(true);
+  });
+});
+
+describe('Phase 1 · security settings', () => {
+  it('reports mfaEnabled on /me and changes the password', async () => {
+    const { agent: a, email, password } = await signupFresh('Security Owner', 'Security Org');
+    await loginAs(a, email, password);
+
+    const me = await a.get('/api/auth/me');
+    expect(me.status).toBe(200);
+    expect(me.body.data.user.mfaEnabled).toBe(false);
+
+    // wrong current password is rejected
+    const bad = await a.post('/api/auth/change-password').set('x-csrf-token', await getCsrf(a)).send({ currentPassword: 'nope', newPassword: 'NewPass123' });
+    expect(bad.status).toBe(400);
+
+    // valid change works and keeps the current session alive
+    const okRes = await a.post('/api/auth/change-password').set('x-csrf-token', await getCsrf(a)).send({ currentPassword: password, newPassword: 'NewPass123' });
+    expect(okRes.status).toBe(200);
+    expect((await a.get('/api/leads')).status).toBe(200);
+
+    // the old password no longer works, the new one does
+    const stale = await loginAs(a, email, password);
+    expect(stale.status).toBe(401);
+    await a.post('/api/auth/logout').set('x-csrf-token', await getCsrf(a)).send({});
+    const fresh = await loginAs(a, email, 'NewPass123');
+    expect(fresh.status).toBe(200);
+  });
+});
+
+describe('Phase 1 · multi-factor authentication', () => {
+  it('enables MFA, challenges login and completes via TOTP and recovery codes', async () => {
+    const { agent: a, email, password } = await signupFresh('Mfa Owner', 'Mfa Org');
+
+    // 1. setup — requires the current password
+    const csrf0 = await getCsrf(a);
+    const setup = await a.post('/api/auth/mfa/setup').set('x-csrf-token', csrf0).send({ password });
+    expect(setup.status).toBe(200);
+    const secret: string = setup.body.data.secret;
+    expect(secret.length).toBeGreaterThanOrEqual(16);
+    expect(setup.body.data.qrDataUrl).toContain('data:image/png');
+
+    // 2. confirm with a valid TOTP code → enabled + 10 recovery codes
+    const code = await generateTotp({ secret });
+    const csrf1 = await getCsrf(a);
+    const confirm = await a.post('/api/auth/mfa/confirm').set('x-csrf-token', csrf1).send({ secret, code });
+    expect(confirm.status).toBe(200);
+    expect(confirm.body.data.enabled).toBe(true);
+    expect(confirm.body.data.recoveryCodes.length).toBe(10);
+    const recoveryCode: string = confirm.body.data.recoveryCodes[0];
+
+    // 3. signing in now requires the second factor
+    await a.post('/api/auth/logout').set('x-csrf-token', await getCsrf(a)).send({});
+    const login = await loginAs(a, email, password);
+    expect(login.status).toBe(200);
+    expect(login.body.data.mfaRequired).toBe(true);
+    const mfaToken: string = login.body.data.mfaToken;
+
+    // 4. complete login with a fresh TOTP code
+    const code2 = await generateTotp({ secret });
+    const verify = await a.post('/api/auth/mfa/verify').set('x-csrf-token', await getCsrf(a)).send({ mfaToken, code: code2 });
+    expect(verify.status).toBe(200);
+    expect(verify.body.data.user.email).toBe(email);
+    expect((await a.get('/api/leads')).status).toBe(200);
+
+    // 5. a wrong code is rejected
+    const wrong = await a.post('/api/auth/mfa/verify').set('x-csrf-token', await getCsrf(a)).send({ mfaToken, code: '123456' });
+    expect(wrong.status).toBe(401);
+
+    // 6. recovery code path — logout, login, redeem a recovery code
+    await a.post('/api/auth/logout').set('x-csrf-token', await getCsrf(a)).send({});
+    const login2 = await loginAs(a, email, password);
+    const mfaToken2: string = login2.body.data.mfaToken;
+    const recovery = await a.post('/api/auth/mfa/recovery').set('x-csrf-token', await getCsrf(a)).send({ mfaToken: mfaToken2, code: recoveryCode });
+    expect(recovery.status).toBe(200);
+    expect((await a.get('/api/leads')).status).toBe(200);
+
+    // 7. used recovery codes cannot be reused
+    await a.post('/api/auth/logout').set('x-csrf-token', await getCsrf(a)).send({});
+    const login3 = await loginAs(a, email, password);
+    const again = await a.post('/api/auth/mfa/recovery').set('x-csrf-token', await getCsrf(a)).send({ mfaToken: login3.body.data.mfaToken, code: recoveryCode });
+    expect(again.status).toBe(401);
+
+    // 8. complete a fresh login (TOTP) so we have a session, then verify the
+    // login history recorded the MFA flows
+    const login4 = await loginAs(a, email, password);
+    const verify4 = await a
+      .post('/api/auth/mfa/verify')
+      .set('x-csrf-token', await getCsrf(a))
+      .send({ mfaToken: login4.body.data.mfaToken, code: await generateTotp({ secret }) });
+    expect(verify4.status).toBe(200);
+
+    const history = await a.get('/api/auth/login-history');
+    expect(history.status).toBe(200);
+    const reasons = history.body.data.history.map((h: any) => h.reason);
+    expect(reasons).toContain('MFA_OK');
+    expect(reasons).toContain('RECOVERY_OK');
+  });
+
+  it('disabling MFA requires the current password and a valid code', async () => {
+    const { agent: a, email, password } = await signupFresh('Disable Mfa', 'Disable Org');
+    const csrf0 = await getCsrf(a);
+    const setup = await a.post('/api/auth/mfa/setup').set('x-csrf-token', csrf0).send({ password });
+    const secret = setup.body.data.secret;
+    await a.post('/api/auth/mfa/confirm').set('x-csrf-token', await getCsrf(a)).send({ secret, code: await generateTotp({ secret }) });
+
+    // wrong password → rejected
+    const bad = await a.post('/api/auth/mfa/disable').set('x-csrf-token', await getCsrf(a)).send({ password: 'WrongPass', code: await generateTotp({ secret }) });
+    expect(bad.status).toBe(400);
+
+    const okRes = await a.post('/api/auth/mfa/disable').set('x-csrf-token', await getCsrf(a)).send({ password, code: await generateTotp({ secret }) });
+    expect(okRes.status).toBe(200);
+    expect(okRes.body.data.disabled).toBe(true);
+
+    // login no longer requires a second factor
+    await a.post('/api/auth/logout').set('x-csrf-token', await getCsrf(a)).send({});
+    const login = await loginAs(a, email, password);
+    expect(login.status).toBe(200);
+    expect(login.body.data.mfaRequired).toBeFalsy();
+  });
+});
+
+describe('Phase 1 · RBAC roles & permissions', () => {
+  it('seeds 7 system roles with a permission catalog', async () => {
+    const { agent: a } = await signupFresh('Roles Owner', 'Roles Org');
+    const res = await a.get('/api/roles');
+    expect(res.status).toBe(200);
+    expect(res.body.data.roles.length).toBe(7);
+    expect(res.body.data.catalog).toContain('leads.view');
+    expect(res.body.data.catalog).toContain('invoices.create');
+    const sales = res.body.data.roles.find((r: any) => r.key === 'SALES');
+    expect(sales.permissions).toContain('leads.create');
+    expect(sales.permissions).not.toContain('leads.delete');
+    expect(sales.permissions).not.toContain('invoices.create');
+  });
+
+  it('lets admins create a custom role and enforce it on members', async () => {
+    const { agent: a, email, password } = await signupFresh('Rbac Owner', 'Rbac Org');
+
+    const csrf0 = await getCsrf(a);
+    const roleRes = await a.post('/api/roles').set('x-csrf-token', csrf0).send({
+      name: 'Lead Closer',
+      description: 'Reads and edits leads only',
+      permissions: ['dashboard.view', 'leads.view', 'leads.create', 'leads.edit'],
+    });
+    expect(roleRes.status).toBe(201);
+    expect(roleRes.body.data.role.key).toContain('CUSTOM_');
+
+    // invite a member with the custom role
+    const memberEmail = 'closer@test.com';
+    const invite = await a.post('/api/team').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Closer Person',
+      email: memberEmail,
+      role: roleRes.body.data.role.key,
+      password: 'StrongPass123',
+    });
+    expect(invite.status).toBe(201);
+
+    // the custom-role member can view/create leads but cannot delete or manage roles
+    const member = request.agent(server);
+    const login = await loginAs(member, memberEmail, 'StrongPass123');
+    expect(login.status).toBe(200);
+    expect((await member.get('/api/leads')).status).toBe(200);
+
+    const createLead = await member.post('/api/leads').set('x-csrf-token', await getCsrf(member)).send({ name: 'Closer Lead', phone: '9900001234' });
+    expect(createLead.status).toBe(201);
+
+    const deleteLead = await member.delete('/api/leads/whatever').set('x-csrf-token', await getCsrf(member));
+    expect(deleteLead.status).toBe(403);
+    expect(deleteLead.body.error.code).toBe('FORBIDDEN');
+
+    const manageRoles = await member.post('/api/roles').set('x-csrf-token', await getCsrf(member)).send({ name: 'Nope', permissions: [] });
+    expect(manageRoles.status).toBe(403);
+
+    const manageTeams = await member.post('/api/teams').set('x-csrf-token', await getCsrf(member)).send({ name: 'Nope' });
+    expect(manageTeams.status).toBe(403);
+
+    // owner can delete the custom role once unassigned — reassign first
+    const teamRes = await a.get('/api/team');
+    const closer = teamRes.body.data.users.find((u: any) => u.email === memberEmail);
+    const reassign = await a.patch(`/api/team/${closer.id}`).set('x-csrf-token', await getCsrf(a)).send({ role: 'VIEWER' });
+    expect(reassign.status).toBe(200);
+    const del = await a.delete(`/api/roles/${roleRes.body.data.role.id}`).set('x-csrf-token', await getCsrf(a));
+    expect(del.status).toBe(200);
+    expect(del.body.data.deleted).toBe(true);
+  });
+
+  it('a viewer cannot create leads (granular enforcement)', async () => {
+    const { agent: a, email, password } = await signupFresh('Viewer Boss', 'Viewer Org');
+    const viewerEmail = 'viewer1@test.com';
+    await a.post('/api/team').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Read Only',
+      email: viewerEmail,
+      role: 'VIEWER',
+      password: 'StrongPass123',
+    });
+    const viewer = request.agent(server);
+    const login = await loginAs(viewer, viewerEmail, 'StrongPass123');
+    expect(login.status).toBe(200);
+
+    expect((await viewer.get('/api/dashboard')).status).toBe(200);
+    const denied = await viewer.post('/api/leads').set('x-csrf-token', await getCsrf(viewer)).send({ name: 'Nope', phone: '9900000001' });
+    expect(denied.status).toBe(403);
+    const deniedExport = await viewer.get('/api/leads/export');
+    expect(deniedExport.status).toBe(403);
+  });
+});
+
+describe('Phase 1 · teams', () => {
+  it('creates teams, assigns members and cleans up on delete', async () => {
+    const { agent: a } = await signupFresh('Team Boss', 'Team Org');
+    const csrf0 = await getCsrf(a);
+    const created = await a.post('/api/teams').set('x-csrf-token', csrf0).send({ name: 'Sales A', description: 'Outbound squad' });
+    expect(created.status).toBe(201);
+    const teamId = created.body.data.team.id;
+
+    const memberEmail = 'teammate@test.com';
+    await a.post('/api/team').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Teammate',
+      email: memberEmail,
+      role: 'SALES',
+      password: 'StrongPass123',
+    });
+    const team = await a.get('/api/team');
+    const member = team.body.data.users.find((u: any) => u.email === memberEmail);
+
+    const assign = await a.patch(`/api/team/${member.id}`).set('x-csrf-token', await getCsrf(a)).send({ teamId });
+    expect(assign.status).toBe(200);
+
+    const teams = await a.get('/api/teams');
+    const salesA = teams.body.data.teams.find((t: any) => t.id === teamId);
+    expect(salesA.memberCount).toBe(1);
+
+    // duplicate name rejected
+    const dup = await a.post('/api/teams').set('x-csrf-token', await getCsrf(a)).send({ name: 'Sales A' });
+    expect(dup.status).toBe(409);
+
+    // deleting the team unassigns members (they stay in the org)
+    const del = await a.delete(`/api/teams/${teamId}`).set('x-csrf-token', await getCsrf(a));
+    expect(del.status).toBe(200);
+    const after = await a.get('/api/teams');
+    expect(after.body.data.teams.some((t: any) => t.id === teamId)).toBe(false);
+    const memberAfter = (await a.get('/api/team')).body.data.users.find((u: any) => u.id === member.id);
+    expect(memberAfter.teamId).toBeNull();
+  });
+
+  it('cannot assign a member to a team from another org', async () => {
+    const { agent: a } = await signupFresh('Team Owner A', 'Org Alpha');
+    const { agent: b } = await signupFresh('Team Owner B', 'Org Beta');
+    const teamsA = await a.get('/api/teams');
+    const teamA = teamsA.body.data.teams.length ? teamsA.body.data.teams[0] : (await a.post('/api/teams').set('x-csrf-token', await getCsrf(a)).send({ name: 'A Team' })).body.data.team;
+    const usersB = (await b.get('/api/team')).body.data.users;
+    const ownerB = usersB[0];
+
+    const crossOrg = await a.patch(`/api/team/${ownerB.id}`).set('x-csrf-token', await getCsrf(a)).send({ teamId: teamA.id });
+    expect(crossOrg.status).toBe(404); // member does not exist in org A
+  });
+});
+
+describe('Phase 1 · paise money storage', () => {
+  it('stores expected value as paise and returns rupees', async () => {
+    const { prisma } = await import('../lib/prisma');
+    const { agent: a } = await signupFresh('Money Owner', 'Money Org');
+    const csrf = await getCsrf(a);
+    const res = await a.post('/api/leads').set('x-csrf-token', csrf).send({
+      name: 'Big Deal',
+      phone: '9988001122',
+      expectedValue: 123456.78,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.data.lead.expectedValue).toBe(123456.78);
+
+    const row = await prisma.lead.findUnique({ where: { orgId_phone: { orgId: res.body.data.lead.orgId, phone: '9988001122' } } });
+    expect(row?.expectedValue).toBe(12345678); // paise
+  });
+
+  it('keeps quotation totals exact through paise arithmetic', async () => {
+    const { agent: a } = await signupFresh('Quote Money', 'Quote Org');
+    const csrf = await getCsrf(a);
+    const res = await a.post('/api/quotations').set('x-csrf-token', csrf).send({
+      customerName: 'Precision Co',
+      items: [{ description: 'Service', quantity: 1, rate: 99.99, taxPct: 18 }],
+    });
+    expect(res.status).toBe(201);
+    const q = res.body.data.quotation;
+    expect(q.subtotal).toBe(99.99);
+    expect(q.total).toBeCloseTo(117.99, 2); // 99.99 + 17.9982 → rounds to paise 18.00
   });
 });

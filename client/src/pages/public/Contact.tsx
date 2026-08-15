@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { friendlyError } from '@/hooks/use-auth';
 
 export function Contact() {
-  useSeo('Contact — LeadFlow AI', 'Get in touch with the LeadFlow AI team.');
+  useSeo('Contact — PRIMELEAD AI', 'Get in touch with the PRIMELEAD AI team.');
   const { success, error } = useToast();
   const [form, setForm] = useState({ name: '', email: '', company: '', message: '' });
   const [sending, setSending] = useState(false);
@@ -40,7 +40,7 @@ export function Contact() {
           </p>
           <div className="mt-10 space-y-5">
             {[
-              { icon: Mail, label: 'Email', value: 'hello@leadflow.example' },
+              { icon: Mail, label: 'Email', value: 'hello@primelead.example' },
               { icon: Phone, label: 'Phone / WhatsApp', value: '+91 98xxx xxxxx (Mon–Sat, 10am–7pm IST)' },
               { icon: MapPin, label: 'Office', value: 'Bengaluru, Karnataka, India' },
               { icon: MessageSquare, label: 'Languages', value: 'English · हिन्दी · Hinglish' },

@@ -20,7 +20,7 @@ interface InvoiceData {
 }
 
 export function GSTInvoiceGenerator() {
-  useSeo('Free GST Invoice Generator — LeadFlow AI', 'Create GST-compliant invoices instantly. No login needed. Includes CGST/SGST/IGST calculations, professional PDF download, and WhatsApp share.');
+  useSeo('Free GST Invoice Generator — PRIMELEAD AI', 'Create GST-compliant invoices instantly. No login needed. Includes CGST/SGST/IGST calculations, professional PDF download, and WhatsApp share.');
   
   const [invoice, setInvoice] = useState<InvoiceData>({
     customerName: '',
@@ -268,7 +268,7 @@ export function GSTInvoiceGenerator() {
           {showPreview ? (
             <div className="mt-6 rounded-xl border bg-white p-6 shadow-inner">
               <div className="mb-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-700">
-                <strong>Disclaimer:</strong> This is a demonstration tool. For actual GST compliance, please use LeadFlow AI's full invoicing system.
+                <strong>Disclaimer:</strong> This is a demonstration tool. For actual GST compliance, please use PRIMELEAD AI's full invoicing system.
               </div>
               <div className="border-b pb-4 mb-4">
                 <h3 className="text-lg font-bold">INVOICE</h3>
@@ -363,7 +363,7 @@ export function GSTInvoiceGenerator() {
       <div className="mt-16 rounded-3xl border bg-slate-50 p-8 sm:p-10 text-center">
         <h2 className="text-2xl font-bold">Need more than just invoice generation?</h2>
         <p className="mt-2 max-w-xl mx-auto text-muted-foreground">
-          LeadFlow AI includes full GST invoicing, quotations, payment tracking, and integrates with your leads and pipeline — all in one CRM built for Indian agencies.
+          PRIMELEAD AI includes full GST invoicing, quotations, payment tracking, and integrates with your leads and pipeline — all in one CRM built for Indian agencies.
         </p>
         <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
           <Link to="/signup">

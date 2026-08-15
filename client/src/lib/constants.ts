@@ -45,13 +45,16 @@ export const PRIORITY_META: Record<string, { label: string; className: string }>
 
 export const TASK_KINDS = ['FOLLOW_UP', 'CALL', 'WHATSAPP', 'EMAIL', 'MEETING', 'TASK'] as const;
 
-export const ROLES = ['OWNER', 'ADMIN', 'MANAGER', 'SALES'] as const;
+export const ROLES = ['OWNER', 'ADMIN', 'MANAGER', 'SALES', 'ACCOUNTANT', 'SUPPORT', 'VIEWER'] as const;
 
 export const ROLE_LABEL: Record<string, string> = {
   OWNER: 'Owner',
   ADMIN: 'Admin',
   MANAGER: 'Manager',
   SALES: 'Salesperson',
+  ACCOUNTANT: 'Accountant',
+  SUPPORT: 'Support',
+  VIEWER: 'Viewer',
 };
 
 export const BUSINESS_TYPES = [

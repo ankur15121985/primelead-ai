@@ -32,7 +32,7 @@ export function Footer() {
         <div>
           <h4 className="text-sm font-semibold text-white">Get in touch</h4>
           <ul className="mt-4 space-y-2.5 text-sm text-slate-400">
-            <li className="flex items-center gap-2"><Mail className="h-4 w-4" /> hello@leadflow.example</li>
+            <li className="flex items-center gap-2"><Mail className="h-4 w-4" /> hello@primelead.example</li>
             <li className="flex items-center gap-2"><Phone className="h-4 w-4" /> +91 98xxx xxxxx</li>
             <li className="flex items-center gap-2"><MapPin className="h-4 w-4" /> Bengaluru, India</li>
           </ul>
@@ -40,7 +40,7 @@ export function Footer() {
       </div>
       <div className="border-t border-slate-800">
         <div className="container flex flex-col items-center justify-between gap-2 py-5 text-xs text-slate-500 sm:flex-row">
-          <p>© {new Date().getFullYear()} LeadFlow AI. All rights reserved. (Demo product — not affiliated with any real CRM.)</p>
+          <p>© {new Date().getFullYear()} PRIMELEAD AI. All rights reserved. (Demo product — not affiliated with any real CRM.)</p>
           <p className="flex gap-4">
             <span>Terms</span><span>Privacy</span><span>Security</span>
           </p>

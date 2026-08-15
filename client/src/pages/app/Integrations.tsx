@@ -160,7 +160,7 @@ function SecretDialog({
     <Dialog open onOpenChange={onClose}>
       <DialogContent
         title={`${name} — webhook details`}
-        description="Use this URL and secret to send leads to LeadFlow from this source. The secret is shown once on creation."
+        description="Use this URL and secret to send leads to PRIMELEAD from this source. The secret is shown once on creation."
       >
         <div className="space-y-4">
           <div className="space-y-1.5">

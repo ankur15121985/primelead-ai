@@ -9,7 +9,7 @@
 import { Router } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, notFound, ok, validate } from '../lib/http';
-import { requireAuth, type AuthedRequest } from '../middleware/auth';
+import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { contactCreateSchema, contactUpdateSchema } from '../validators/schemas';
 
 const router = Router();
@@ -17,6 +17,7 @@ router.use(requireAuth);
 
 router.get(
   '/',
+  requirePermission('contacts.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const q = req.query as Record<string, string>;
@@ -42,6 +43,7 @@ router.get(
 
 router.post(
   '/',
+  requirePermission('contacts.create'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(contactCreateSchema, req.body);
@@ -68,6 +70,7 @@ router.post(
 
 router.get(
   '/:id',
+  requirePermission('contacts.view'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const contact = await prisma.contact.findFirst({
@@ -81,6 +84,7 @@ router.get(
 
 router.patch(
   '/:id',
+  requirePermission('contacts.edit'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const input = validate(contactUpdateSchema, req.body);
@@ -109,6 +113,7 @@ router.patch(
 
 router.delete(
   '/:id',
+  requirePermission('contacts.delete'),
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     const existing = await prisma.contact.findFirst({ where: { id: req.params.id, orgId: user.orgId } });
