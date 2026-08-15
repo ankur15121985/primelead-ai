@@ -1,0 +1,581 @@
+// LeadFlow AI — Prisma schema
+// Local dev uses SQLite. For production, change the provider to "postgresql"
+// and the DATABASE_URL — everything else in the schema is Postgres-compatible.
+//
+// Conventions:
+//  * Every business entity carries `orgId` → Organization for hard multi-tenant isolation.
+//  * Enums are modelled as String fields (SQLite doesn't support Prisma enums);
+//    valid values are documented in comments and enforced by server-side zod validators.
+//  * Money is stored as Float (₹). Swap to Decimal/Int-paise when moving to Postgres.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────────────────────────────────
+// Core: Organization & Users
+// ────────────────────────────────────────────────────────────
+
+model Organization {
+  id           String       @id @default(cuid())
+  name         String
+  slug         String       @unique
+  businessType String? // RETAIL | REAL_ESTATE | EDUCATION | SERVICES | MANUFACTURING | HEALTHCARE | OTHER
+  logoUrl      String?
+  plan         String       @default("STARTER") // STARTER | GROWTH | BUSINESS
+  status       String       @default("ACTIVE") // ACTIVE | SUSPENDED
+  settings     OrgSetting[]
+  users        User[]
+  leads        Lead[]
+  contacts     Contact[]
+  activities   Activity[]
+  tasks        Task[]
+  pipelines    Pipeline[]
+  quotations   Quotation[]
+  invoices     Invoice[]
+  integrations Integration[]
+  qrCodes      QrCode[]
+  campaigns    Campaign[]
+  notifications Notification[]
+  aiConversations AiConversation[]
+  auditLogs    AuditLog[]
+  subscription Subscription?
+  payments     Payment[]
+  referrals    Referral[] @relation("ReferrerOrg")
+  referredBy   Referral? @relation("ReferredOrg")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+}
+
+model User {
+  id           String  @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name         String
+  email        String
+  phone        String?
+  passwordHash String
+  role         String  @default("SALES") // OWNER | ADMIN | MANAGER | SALES
+  title        String?
+  active       Boolean @default(true)
+  emailVerifiedAt DateTime?
+  avatarUrl    String?
+  lastLoginAt  DateTime?
+  lastAssignmentAt DateTime?
+
+  leads         Lead[]           @relation("LeadOwner")
+  activities    Activity[]
+  tasks         Task[]
+  notifications Notification[]
+  aiConversations AiConversation[]
+  referrals     Referral[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, email])
+  @@index([orgId, role])
+}
+
+model OrgSetting {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  key       String // e.g. leadSources, sourceAssignments, ai, whatsapp, notifications
+  value     Json?
+  updatedAt DateTime     @updatedAt
+
+  @@unique([orgId, key])
+}
+
+// ────────────────────────────────────────────────────────────
+// Leads, Contacts, Pipeline
+// ────────────────────────────────────────────────────────────
+
+model Lead {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ownerId        String?
+  owner          User?        @relation("LeadOwner", fields: [ownerId], references: [id])
+  name           String
+  phone          String?
+  email          String?
+  company        String?
+  // WEBSITE | FACEBOOK | INSTAGRAM | GOOGLE_ADS | WHATSAPP | INDIAMART | JUSTDIAL |
+  // TRADEINDIA | PROPERTY_PORTAL | SHOPIFY | ZAPIER | WEBHOOK | API | CSV | QR | MANUAL
+  source         String       @default("MANUAL")
+  campaignId     String?
+  campaign       Campaign?    @relation(fields: [campaignId], references: [id])
+  campaignName   String?
+  status         String       @default("NEW") // NEW | CONTACTED | QUALIFIED | PROPOSAL | NEGOTIATION | WON | LOST
+  stageId        String?
+  stage          PipelineStage? @relation(fields: [stageId], references: [id])
+  priority       String       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  score          Int          @default(0)
+  expectedValue  Float        @default(0)
+  notes          String?
+  tags           Json? // string[]
+  customFields   Json? // Record<string, string>
+  lastContactedAt DateTime?
+  nextFollowUpAt DateTime?
+  deletedAt      DateTime?
+
+  activities Activity[]
+  tasks      Task[]
+  quotations Quotation[]
+  invoices   Invoice[]
+  contacts   Contact[]
+  qrScans    QrScan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, phone])
+  @@unique([orgId, email])
+  @@index([orgId, status])
+  @@index([orgId, stageId])
+  @@index([orgId, ownerId])
+  @@index([orgId, source])
+  @@index([orgId, createdAt])
+  @@index([orgId, nextFollowUpAt])
+}
+
+model Contact {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId    String?
+  lead      Lead?        @relation(fields: [leadId], references: [id])
+  name      String
+  phone     String?
+  email     String?
+  company   String?
+  notes     String?
+  tags      Json?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([orgId, phone])
+  @@index([orgId, email])
+}
+
+model Pipeline {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name      String       @default("Sales Pipeline")
+  isDefault Boolean      @default(true)
+  stages    PipelineStage[]
+  createdAt DateTime     @default(now())
+}
+
+model PipelineStage {
+  id         String    @id @default(cuid())
+  pipelineId String
+  pipeline   Pipeline  @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  orgId      String
+  name       String
+  order      Int       @default(0)
+  color      String    @default("#64748b")
+  isWon      Boolean   @default(false)
+  isLost     Boolean   @default(false)
+  leads      Lead[]
+  createdAt  DateTime  @default(now())
+
+  @@index([orgId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Activities, Tasks / Follow-ups, Notifications
+// ────────────────────────────────────────────────────────────
+
+model Activity {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId    String?
+  lead      Lead?        @relation(fields: [leadId], references: [id])
+  userId    String?
+  user      User?        @relation(fields: [userId], references: [id])
+  // LEAD_CREATED | CALL | WHATSAPP | EMAIL | NOTE | MEETING | QUOTATION | INVOICE |
+  // FOLLOW_UP | STATUS_CHANGE | ASSIGNMENT | SYSTEM
+  type      String
+  title     String
+  body      String?
+  metadata  Json?
+  createdAt DateTime     @default(now())
+
+  @@index([orgId, leadId])
+  @@index([orgId, createdAt])
+}
+
+model Task {
+  id               String       @id @default(cuid())
+  orgId            String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId           String?
+  lead             Lead?        @relation(fields: [leadId], references: [id])
+  userId           String
+  user             User?        @relation(fields: [userId], references: [id])
+  title            String
+  kind             String       @default("FOLLOW_UP") // FOLLOW_UP | CALL | WHATSAPP | EMAIL | MEETING | TASK
+  dueAt            DateTime
+  status           String       @default("PENDING") // PENDING | DONE | MISSED | CANCELLED
+  notes            String?
+  completedAt      DateTime?
+  overdueNotifiedAt DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([orgId, userId, status])
+  @@index([orgId, dueAt])
+  @@index([orgId, leadId])
+}
+
+model Notification {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User?        @relation(fields: [userId], references: [id])
+  // FOLLOW_UP_OVERDUE | NEW_LEAD | LEAD_ASSIGNED | QUOTATION_ACCEPTED | INVOICE_OVERDUE | LEAD_STALE | SYSTEM
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([orgId, userId, readAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Campaigns & QR lead capture
+// ────────────────────────────────────────────────────────────
+
+model Campaign {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  source      String       @default("QR") // QR | FACEBOOK | GOOGLE_ADS | OTHER
+  description String?
+  leads       Lead[]
+  qrCodes     QrCode[]
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId])
+}
+
+model QrCode {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaignId  String?
+  campaign    Campaign?    @relation(fields: [campaignId], references: [id])
+  title       String
+  description String?
+  slug        String       @unique
+  fields      Json? // ["name","phone","email","message"] — lead form fields
+  scanCount   Int          @default(0)
+  leadCount   Int          @default(0)
+  enabled     Boolean      @default(true)
+  scans       QrScan[]
+  createdAt   DateTime     @default(now())
+}
+
+model QrScan {
+  id        String   @id @default(cuid())
+  qrId      String
+  qr        QrCode   @relation(fields: [qrId], references: [id], onDelete: Cascade)
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([qrId])
+  @@index([leadId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Quotations & Invoices (GST ready)
+// ────────────────────────────────────────────────────────────
+
+model Quotation {
+  id          String          @id @default(cuid())
+  orgId       String
+  org         Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  number      String
+  leadId      String?
+  lead        Lead?           @relation(fields: [leadId], references: [id])
+  customerName String
+  company     String?
+  address     String?
+  gstin       String?
+  phone       String?
+  email       String?
+  items       QuotationItem[]
+  discount    Float           @default(0)
+  gstSummary  Json? // { cgst, sgst, igst }
+  subtotal    Float           @default(0)
+  total       Float           @default(0)
+  terms       String?
+  validityDays Int            @default(15)
+  status      String          @default("DRAFT") // DRAFT | SENT | ACCEPTED | REJECTED | EXPIRED | CONVERTED
+  invoiceId   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([orgId, number])
+  @@index([orgId, status])
+}
+
+model QuotationItem {
+  id           String    @id @default(cuid())
+  quotationId  String
+  quotation    Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description  String
+  quantity     Float     @default(1)
+  rate         Float     @default(0)
+  discountPct  Float     @default(0)
+  taxPct       Float     @default(0) // e.g. 18
+  cgst         Float     @default(0)
+  sgst         Float     @default(0)
+  igst         Float     @default(0)
+  amount       Float     @default(0)
+  createdAt    DateTime  @default(now())
+}
+
+model Invoice {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  number         String
+  leadId         String?
+  lead           Lead?        @relation(fields: [leadId], references: [id])
+  quotationId    String?
+  customerName   String
+  company        String?
+  billingAddress String?
+  gstin          String?
+  hsnSac         String?
+  items          InvoiceItem[]
+  discount       Float        @default(0)
+  gstSummary     Json?
+  subtotal       Float        @default(0)
+  total          Float        @default(0)
+  paidAmount     Float        @default(0)
+  status         String       @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
+  dueDate        DateTime?
+  terms          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([orgId, number])
+  @@index([orgId, status])
+}
+
+model InvoiceItem {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  hsnSac    String?
+  quantity  Float   @default(1)
+  rate      Float   @default(0)
+  discountPct Float @default(0)
+  taxPct    Float   @default(0)
+  cgst      Float   @default(0)
+  sgst      Float   @default(0)
+  igst      Float   @default(0)
+  amount    Float   @default(0)
+  createdAt DateTime @default(now())
+}
+
+// ────────────────────────────────────────────────────────────
+// Integrations & Webhooks
+// ────────────────────────────────────────────────────────────
+
+model Integration {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // FACEBOOK | INSTAGRAM | GOOGLE_ADS | WHATSAPP | INDIAMART | JUSTDIAL |
+  // TRADEINDIA | SHOPIFY | ZAPIER | WEBHOOK | API | CUSTOM
+  source         String
+  name           String
+  config         Json? // credentials kept server-side only (encrypted in production)
+  webhookSecret  String?
+  webhookUrl     String?
+  enabled        Boolean      @default(false)
+  status         String       @default("DISCONNECTED") // DISCONNECTED | CONNECTED | ERROR
+  lastSyncAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([orgId, source])
+}
+
+// ────────────────────────────────────────────────────────────
+// AI assistant (conversational, org-scoped)
+// ────────────────────────────────────────────────────────────
+
+model AiConversation {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User?        @relation(fields: [userId], references: [id])
+  topic     String?
+  messages  AiMessage[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([orgId, userId])
+}
+
+model AiMessage {
+  id             String        @id @default(cuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String // user | assistant
+  content        String
+  createdAt      DateTime      @default(now())
+}
+
+// ────────────────────────────────────────────────────────────
+// Security: audit, password reset, email verification
+// ────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime     @default(now())
+
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Referral / Affiliate System
+// ────────────────────────────────────────────────────────────
+
+model Referral {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation("ReferrerOrg", fields: [orgId], references: [id], onDelete: Cascade)
+  referrerUserId  String
+  referrerUser    User?        @relation(fields: [referrerUserId], references: [id])
+  referralCode    String       @unique
+  referredOrgId   String?      @unique
+  referredOrg     Organization? @relation("ReferredOrg", fields: [referredOrgId], references: [id])
+  status          String       @default("PENDING") // PENDING | CONVERTED | PAID
+  commissionPct   Float        @default(10) // percentage commission
+  commissionAmount Float       @default(0)
+  notes           String?
+  payouts         ReferralPayout[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, referrerUserId])
+  @@index([referralCode])
+}
+
+model ReferralPayout {
+  id          String   @id @default(cuid())
+  referralId  String
+  referral    Referral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  amount      Float
+  currency    String   @default("INR")
+  status      String   @default("PENDING") // PENDING | PAID | FAILED
+  paidAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([referralId])
+}
+
+model ResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Billing (provider-agnostic — Razorpay / Stripe later)
+// ────────────────────────────────────────────────────────────
+
+model Plan {
+  id           String  @id @default(cuid())
+  slug         String  @unique // starter | growth | business
+  name         String
+  priceMonthly Float
+  priceYearly  Float
+  features     Json?
+  active       Boolean @default(true)
+  createdAt    DateTime @default(now())
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id            String       @id @default(cuid())
+  orgId         String       @unique
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  planId        String?
+  plan          Plan?        @relation(fields: [planId], references: [id])
+  status        String       @default("TRIAL") // TRIAL | ACTIVE | PAST_DUE | CANCELLED
+  period        String       @default("MONTHLY") // MONTHLY | YEARLY
+  startsAt      DateTime     @default(now())
+  endsAt        DateTime?
+  provider      String? // razorpay | stripe
+  providerSubId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([orgId])
+}
+
+model Payment {
+  id                String       @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  subscriptionId    String?
+  amount            Float
+  currency          String       @default("INR")
+  status            String       @default("PENDING") // PENDING | SUCCEEDED | FAILED | REFUNDED
+  provider          String?
+  providerPaymentId String?
+  createdAt         DateTime     @default(now())
+
+  @@index([orgId])
+}

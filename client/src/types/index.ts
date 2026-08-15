@@ -1,0 +1,425 @@
+/** Shared API DTO types (mirror server serializers). */
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: string;
+  title: string | null;
+  active: boolean;
+  avatarUrl: string | null;
+  emailVerified: boolean;
+  isSuperAdmin?: boolean;
+  createdAt: string;
+}
+
+export interface Org {
+  id: string;
+  name: string;
+  slug: string;
+  businessType: string | null;
+  plan: string;
+  status: string;
+  logoUrl: string | null;
+}
+
+export interface LeadOwner {
+  id: string;
+  name: string;
+}
+
+export interface LeadStage {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface Lead {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  company: string | null;
+  source: string;
+  campaignName: string | null;
+  status: string;
+  stageId: string | null;
+  stage: LeadStage | null;
+  priority: string;
+  score: number;
+  expectedValue: number;
+  notes: string | null;
+  tags: string[] | null;
+  customFields: Record<string, string> | null;
+  ownerId: string | null;
+  owner: LeadOwner | null;
+  lastContactedAt: string | null;
+  nextFollowUpAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Activity {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  userId: string | null;
+  user: { name: string } | null;
+  lead?: { name: string } | null;
+  createdAt: string;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  kind: string;
+  dueAt: string;
+  status: string;
+  notes: string | null;
+  leadId: string | null;
+  lead: { id: string; name: string; phone: string | null } | null;
+  userId: string;
+  user: { id: string; name: string } | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  order: number;
+  color: string;
+  isWon: boolean;
+  isLost: boolean;
+  leads: Lead[];
+}
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface LeadListResponse {
+  rows: Lead[];
+  pagination: { page: number; pageSize: number; total: number; pages: number };
+  counts: { new: number; open: number; won: number; overdue: number };
+}
+
+export interface LeadDetail extends Lead {
+  activities: Activity[];
+  tasks: Task[];
+  quotations: unknown[];
+  invoices: unknown[];
+}
+
+export interface QrCode {
+  id: string;
+  title: string;
+  description: string | null;
+  slug: string;
+  url: string;
+  image: string | null;
+  fields: string[];
+  scanCount: number;
+  leadCount: number;
+  conversionRate: number;
+  enabled: boolean;
+  campaignId: string | null;
+  campaign: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface QrDetail extends QrCode {
+  recentLeads: Lead[];
+}
+
+export interface PublicQrMeta {
+  title: string;
+  description: string | null;
+  fields: string[];
+  orgName: string;
+  campaignName: string | null;
+}
+
+// ── Super-admin (website handler) ─────────────────────────
+export interface AdminOrg {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status: string;
+  businessType: string | null;
+  logoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  users: number;
+  leads: number;
+  openLeads: number;
+  pipelineValue: number;
+  overdueTasks: number;
+  qrCodes: number;
+}
+
+export interface AdminOverview {
+  totals: {
+    organizations: number;
+    activeOrganizations: number;
+    suspendedOrganizations: number;
+    users: number;
+    leads: number;
+    wonLeads: number;
+    wonValue: number;
+    qrCodes: number;
+    quotations: number;
+    invoices: number;
+  };
+  organizations: AdminOrg[];
+  recentOrganizations: Array<{ id: string; name: string; plan: string; status: string; createdAt: string }>;
+  recentErrors: Array<{ at: string; method: string; path: string; message: string; status: number; code: string }>;
+}
+
+export interface AdminOrgDetail {
+  org: {
+    id: string;
+    name: string;
+    slug: string;
+    plan: string;
+    status: string;
+    businessType: string | null;
+    logoUrl: string | null;
+    createdAt: string;
+  };
+  users: User[];
+  recentLeads: Lead[];
+  recentActivity: Activity[];
+  subscription: {
+    id: string;
+    status: string;
+    period: string;
+    plan: { id: string; name: string } | null;
+  } | null;
+  stats: {
+    users: number;
+    leads: number;
+    openLeads: number;
+    pipelineValue: number;
+    overdueTasks: number;
+    qrCodes: number;
+  };
+}
+
+export interface AdminSystem {
+  uptimeSeconds: number;
+  startedAt: string;
+  node: string;
+  platform: string;
+  memory: { rss: number; heapUsed: number; heapTotal: number; external: number };
+  loadAvg: number[];
+  cpus: number;
+  database: { connected: boolean; provider: string };
+  recentErrorCount: number;
+  env: Record<string, string>;
+}
+
+export interface DashboardData {
+  cards: {
+    totalLeads: number;
+    newLeads: number;
+    qualifiedLeads: number;
+    wonLeads: number;
+    openLeads: number;
+    weekLeads: number;
+    monthLeads: number;
+    pipelineValue: number;
+    revenue: number;
+    conversionRate: number;
+    overdue: number;
+    today: number;
+    upcoming: number;
+  };
+  charts: {
+    leadsBySource: Array<{ source: string; count: number }>;
+    leadsByOwner: Array<{ name: string; count: number }>;
+    trend: Array<{ date: string; label: string; leads: number; won: number }>;
+    funnel: Array<{ stage: string; value: number }>;
+    topSalespeople: Array<{ name: string; open: number; wonValue: number }>;
+  };
+  lists: {
+    todaysTasks: Task[];
+    overdueTasks: Task[];
+    recentLeads: Lead[];
+    recentActivity: Activity[];
+  };
+}
+
+// ── Quotations & Invoices ────────────────────────────────────
+export interface DocumentItem {
+  id?: string;
+  description: string;
+  hsnSac?: string | null;
+  quantity: number;
+  rate: number;
+  discountPct: number;
+  taxPct: number;
+  gstType?: string;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  amount: number;
+}
+
+export interface Quotation {
+  id: string;
+  number: string;
+  leadId: string | null;
+  lead: { id: string; name: string } | null;
+  customerName: string;
+  company: string | null;
+  address: string | null;
+  gstin: string | null;
+  phone: string | null;
+  email: string | null;
+  items: DocumentItem[];
+  discount: number;
+  gstSummary: { cgst: number; sgst: number; igst: number };
+  subtotal: number;
+  total: number;
+  terms: string | null;
+  validityDays: number;
+  status: string;
+  invoiceId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Invoice {
+  id: string;
+  number: string;
+  leadId: string | null;
+  lead: { id: string; name: string } | null;
+  quotationId: string | null;
+  customerName: string;
+  company: string | null;
+  billingAddress: string | null;
+  gstin: string | null;
+  items: DocumentItem[];
+  discount: number;
+  gstSummary: { cgst: number; sgst: number; igst: number };
+  subtotal: number;
+  total: number;
+  paidAmount: number;
+  balanceDue: number;
+  status: string;
+  dueDate: string | null;
+  terms: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiConversation {
+  id: string;
+  topic: string | null;
+  updatedAt: string;
+  preview: string;
+}
+
+export interface AiConversationDetail {
+  id: string;
+  messages: Array<{ id: string; role: string; content: string; createdAt: string }>;
+}
+
+export interface Integration {
+  id: string;
+  source: string;
+  name: string;
+  enabled: boolean;
+  status: string;
+  webhookUrl: string | null;
+  hasWebhookSecret: boolean;
+  lastSyncAt: string | null;
+  config: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface IntegrationCatalogItem {
+  source: string;
+  name: string;
+  description: string;
+  kind: string;
+  icon: string;
+  connected: boolean;
+}
+
+export interface ReportData {
+  range: { from: string; to: string };
+  cards: {
+    leadsCreated: number;
+    leadsWon: number;
+    leadsLost: number;
+    conversionRate: number;
+    winRate: number;
+    openLeads: number;
+    tasksDone: number;
+    tasksMissed: number;
+    quotationsCount: number;
+    quotationValue: number;
+    invoicesCount: number;
+    invoiceValue: number;
+    revenue: number;
+    activityCount: number;
+  };
+  charts: {
+    bySource: Array<{ source: string; label: string; count: number }>;
+    byOwner: Array<{ name: string; count: number }>;
+    byStatus: Array<{ status: string; count: number }>;
+    byStage: Array<{ name: string; count: number }>;
+    trend: Array<{ day: string; count: number }>;
+  };
+}
+
+export interface Plan {
+  id: string;
+  slug: string;
+  name: string;
+  priceMonthly: number;
+  priceYearly: number;
+  features: string[];
+}
+
+export interface BillingData {
+  org: { id: string; name: string; plan: string; status: string };
+  plans: Plan[];
+  subscription: {
+    id: string;
+    status: string;
+    period: string;
+    startsAt: string;
+    endsAt: string | null;
+    provider: string | null;
+    plan: Plan | null;
+  } | null;
+  currentPlan: Plan | null;
+  payments: Array<{ id: string; amount: number; currency: string; status: string; provider: string | null; createdAt: string }>;
+  gateway: { configured: boolean; provider: string | null };
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  company: string | null;
+  notes: string | null;
+  tags: string[] | null;
+  leadId: string | null;
+  lead: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}

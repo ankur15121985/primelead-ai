@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Microsoft Word 15">
+<meta name="Originator" content="Microsoft Word 15">
+<!--[if gte mso 9]>
+<xml>
+ <o:DocumentProperties>
+  <o:Author>LeadFlow AI</o:Author>
+  <o:LastAuthor>LeadFlow AI</o:LastAuthor>
+  <o:Company>LeadFlow AI</o:Company>
+  <o:Version>15.0</o:Version>
+ </o:DocumentProperties>
+</xml>
+<![endif]-->
+<style>
+  /* Font Definitions */
+  @font-face {
+    font-family: Calibri;
+    panose-1: 2 15 5 2 2 2 4 3 2 4;
+  }
+  /* Style Definitions */
+  body {
+    font-family: Calibri, sans-serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #333333;
+    margin: 1in;
+  }
+  h1 {
+    font-size: 24pt;
+    color: #1e3a5f;
+    border-bottom: 3px solid #2563eb;
+    padding-bottom: 10px;
+    margin-top: 30px;
+  }
+  h2 {
+    font-size: 18pt;
+    color: #1e40af;
+    border-bottom: 2px solid #60a5fa;
+    padding-bottom: 8px;
+    margin-top: 25px;
+  }
+  h3 {
+    font-size: 14pt;
+    color: #1e3a8a;
+    margin-top: 20px;
+  }
+  h4 {
+    font-size: 12pt;
+    color: #374151;
+    margin-top: 15px;
+  }
+  p {
+    margin: 8px 0;
+    text-align: justify;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+  }
+  th {
+    background-color: #2563eb;
+    color: white;
+    padding: 10px 12px;
+    text-align: left;
+    font-weight: bold;
+  }
+  td {
+    border: 1px solid #d1d5db;
+    padding: 8px 12px;
+  }
+  tr:nth-child(even) {
+    background-color: #f3f4f6;
+  }
+  tr:hover {
+    background-color: #e5e7eb;
+  }
+  ul, ol {
+    margin: 10px 0;
+    padding-left: 25px;
+  }
+  li {
+    margin: 5px 0;
+  }
+  code {
+    background-color: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', monospace;
+    font-size: 10pt;
+  }
+  pre {
+    background-color: #1e293b;
+    color: #e2e8f0;
+    padding: 15px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: 'Consolas', monospace;
+    font-size: 9pt;
+  }
+  .tip-box {
+    background-color: #ecfdf5;
+    border-left: 4px solid #10b981;
+    padding: 12px 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .warning-box {
+    background-color: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 12px 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .info-box {
+    background-color: #eff6ff;
+    border-left: 4px solid #3b82f6;
+    padding: 12px 15px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .step-number {
+    display: inline-block;
+    width: 25px;
+    height: 25px;
+    background-color: #2563eb;
+    color: white;
+    text-align: center;
+    line-height: 25px;
+    border-radius: 50%;
+    font-weight: bold;
+    margin-right: 8px;
+  }
+  .role-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 9pt;
+    font-weight: bold;
+    margin: 3px;
+  }
+  .role-owner { background-color: #dbeafe; color: #1e40af; }
+  .role-admin { background-color: #fef3c7; color: #b45309; }
+  .role-manager { background-color: #d1fae5; color: #047857; }
+  .role-sales { background-color: #ede9fe; color: #6d28d9; }
+  .section-divider {
+    border: none;
+    border-top: 2px solid #e5e7eb;
+    margin: 30px 0;
+  }
+  .cover-page {
+    text-align: center;
+    padding: 100px 0;
+  }
+  .cover-title {
+    font-size: 36pt;
+    color: #1e3a5f;
+    margin-bottom: 20px;
+  }
+  .cover-subtitle {
+    font-size: 18pt;
+    color: #6b7280;
+    margin-bottom: 40px;
+  }
+  .toc {
+    background-color: #f9fafb;
+    padding: 20px;
+    border-radius: 8px;
+    margin: 20px 0;
+  }
+  .toc-item {
+    padding: 5px 0;
+    border-bottom: 1px dotted #d1d5db;
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover-page">
+  <h1 style="border: none; font-size: 36pt;">LeadFlow AI</h1>
+  <p class="cover-subtitle">Complete User & Admin Guide</p>
+  <p style="font-size: 14pt; color: #6b7280;">AI-powered CRM & Lead Management for Indian Businesses</p>
+  <hr style="width: 200px; margin: 40px auto; border: 2px solid #2563eb;">
+  <p style="font-size: 12pt; color: #9ca3af;">Version 1.0 | August 10, 2026</p>
+  <p style="font-size: 11pt; color: #9ca3af;">LeadFlow AI v0.1.0</p>
+</div>
+
+<hr class="section-divider">
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc">
+  <h2 style="border: none; margin-top: 0;">Table of Contents</h2>
+  <div class="toc-item">1. Introduction</div>
+  <div class="toc-item">2. Getting Started</div>
+  <div class="toc-item">3. Marketing Site & Authentication</div>
+  <div class="toc-item">4. User Dashboard</div>
+  <div class="toc-item">5. Lead Management</div>
+  <div class="toc-item">6. Sales Pipeline</div>
+  <div class="toc-item">7. Follow-ups & Tasks</div>
+  <div class="toc-item">8. QR Code Lead Capture</div>
+  <div class="toc-item">9. Quotations (GST)</div>
+  <div class="toc-item">10. Invoices (GST)</div>
+  <div class="toc-item">11. AI CRM Assistant</div>
+  <div class="toc-item">12. AI Follow-up Writer</div>
+  <div class="toc-item">13. Integrations & Webhooks</div>
+  <div class="toc-item">14. Reports & Analytics</div>
+  <div class="toc-item">15. Billing & Subscriptions</div>
+  <div class="toc-item">16. Team Management</div>
+  <div class="toc-item">17. Settings</div>
+  <div class="toc-item">18. Calendar</div>
+  <div class="toc-item">19. Contacts</div>
+  <div class="toc-item">20. Notifications</div>
+  <div class="toc-item">21. Super-Admin Panel</div>
+  <div class="toc-item">22. Troubleshooting</div>
+</div>
+
+<hr class="section-divider">
+
+<!-- SECTION 1: INTRODUCTION -->
+<h1>1. Introduction</h1>
+
+<h2>1.1 What is LeadFlow AI?</h2>
+<p>LeadFlow AI is a <strong>production-style SaaS CRM</strong> designed specifically for Indian businesses. It combines:</p>
+<ul>
+  <li>A <strong>premium marketing website</strong> with professional landing pages</li>
+  <li>A <strong>fully working multi-tenant CRM</strong> for lead management</li>
+  <li><strong>AI-powered features</strong> for follow-up writing and conversational insights</li>
+  <li><strong>GST-compliant quotations and invoices</strong> with PDF generation</li>
+  <li><strong>QR code lead capture</strong> for physical locations</li>
+  <li><strong>Integration-ready webhooks</strong> for WhatsApp, Facebook, IndiaMART, and more</li>
+</ul>
+
+<h2>1.2 Target Audience</h2>
+<table>
+  <tr>
+    <th>User Type</th>
+    <th>Role</th>
+    <th>Access Level</th>
+  </tr>
+  <tr>
+    <td>Business Owner</td>
+    <td>Full control</td>
+    <td>Everything — billing, team, settings, integrations</td>
+  </tr>
+  <tr>
+    <td>Admin</td>
+    <td>Operations</td>
+    <td>Everything except billing and ownership settings</td>
+  </tr>
+  <tr>
+    <td>Manager</td>
+    <td>Team Lead</td>
+    <td>Team leads, reports, quotations, invoices</td>
+  </tr>
+  <tr>
+    <td>Salesperson</td>
+    <td>Field Sales</td>
+    <td>Own leads, follow-ups, AI writer</td>
+  </tr>
+</table>
+
+<h2>1.3 Technology Stack</h2>
+<ul>
+  <li><strong>Frontend:</strong> React 18, TypeScript, Vite, Tailwind CSS, Radix UI, TanStack Query</li>
+  <li><strong>Backend:</strong> Node.js, TypeScript, Express, Prisma ORM</li>
+  <li><strong>Database:</strong> SQLite (dev) / PostgreSQL (production)</li>
+  <li><strong>Auth:</strong> bcrypt, JWT (httpOnly cookies), CSRF protection, rate limiting</li>
+  <li><strong>AI:</strong> OpenAI-compatible provider abstraction</li>
+</ul>
+
+<hr class="section-divider">
+
+<!-- SECTION 2: GETTING STARTED -->
+<h1>2. Getting Started</h1>
+
+<h2>2.1 System Requirements</h2>
+<ul>
+  <li><strong>Node.js 18+</strong> (tested on Node 24)</li>
+  <li><strong>npm</strong> (comes with Node)</li>
+  <li>No Docker required for development</li>
+</ul>
+
+<h2>2.2 Installation Steps</h2>
+
+<h3>Step 1: Clone and Install Dependencies</h3>
+<pre><code>cd Compute
+npm install</code></pre>
+
+<h3>Step 2: Configure Environment</h3>
+<pre><code>cp server/.env.example server/.env</code></pre>
+<p>Edit <code>server/.env</code> and set:</p>
+<ul>
+  <li>A strong <code>JWT_SECRET</code></li>
+  <li>Optional: <code>AI_API_KEY</code> and <code>AI_MODEL</code> for AI features</li>
+</ul>
+
+<h3>Step 3: Initialize Database</h3>
+<pre><code>npm run db:migrate    # Creates SQLite schema
+npm run db:seed       # Seeds demo data</code></pre>
+
+<h3>Step 4: Start Development Server</h3>
+<pre><code>npm run dev           # Runs API (port 4000) + Web (port 5173)</code></pre>
+<p>Open <strong>http://localhost:5173</strong> in your browser.</p>
+
+<h2>2.3 Demo Credentials</h2>
+<table>
+  <tr>
+    <th>Role</th>
+    <th>Email</th>
+    <th>Password</th>
+  </tr>
+  <tr>
+    <td>Owner</td>
+    <td>owner@leadflow.demo</td>
+    <td>Demo@1234</td>
+  </tr>
+  <tr>
+    <td>Manager</td>
+    <td>manager@leadflow.demo</td>
+    <td>Demo@1234</td>
+  </tr>
+  <tr>
+    <td>Salesperson</td>
+    <td>karan@leadflow.demo</td>
+    <td>Demo@1234</td>
+  </tr>
+  <tr>
+    <td>Salesperson</td>
+    <td>pooja@leadflow.demo</td>
+    <td>Demo@1234</td>
+  </tr>
+</table>
+
+<hr class="section-divider">
+
+<!-- SECTION 3: MARKETING SITE & AUTH -->
+<h1>3. Marketing Site & Authentication</h1>
+
+<h2>3.1 Marketing Homepage</h2>
+<p><strong>URL:</strong> http://localhost:5173</p>
+<p>The homepage features:</p>
+<ul>
+  <li><strong>Hero Section:</strong> Value proposition with "Start Free" CTA</li>
+  <li><strong>Features Grid:</strong> Core capabilities with icons</li>
+  <li><strong>Lead Sources Section:</strong> Integration options</li>
+  <li><strong>Pricing Section:</strong> Three tiers (Starter, Growth, Business)</li>
+  <li><strong>FAQ Section:</strong> Common questions</li>
+  <li><strong>Footer:</strong> Navigation and company info</li>
+</ul>
+
+<h2>3.2 User Registration (Signup)</h2>
+<p><strong>Step-by-step:</strong></p>
+<ol>
+  <li>Click <strong>"Start Free"</strong> on the homepage or navigate to <code>/signup</code></li>
+  <li>Fill in the registration form:
+    <ul>
+      <li><strong>Full Name</strong> (required)</li>
+      <li><strong>Email Address</strong> (required)</li>
+      <li><strong>Password</strong> (required, minimum 8 characters)</li>
+      <li><strong>Organization Name</strong> (required)</li>
+      <li><strong>Business Type</strong> (dropdown)</li>
+      <li><strong>Phone Number</strong> (optional)</li>
+    </ul>
+  </li>
+  <li>Click <strong>"Create Account"</strong></li>
+  <li>You'll receive a verification email (in dev mode, check console logs)</li>
+  <li>Complete the <strong>Onboarding Wizard</strong></li>
+  <li>You're now logged in as the <strong>Owner</strong> of your new organization</li>
+</ol>
+
+<h2>3.3 User Login</h2>
+<p><strong>Step-by-step:</strong></p>
+<ol>
+  <li>Click <strong>"Log In"</strong> in the top-right corner</li>
+  <li>Enter your <strong>email</strong> and <strong>password</strong></li>
+  <li>Click <strong>"Log In"</strong></li>
+  <li>You'll be redirected to the <strong>Dashboard</strong></li>
+</ol>
+
+<div class="info-box">
+  <strong>Security Features:</strong>
+  <ul>
+    <li>Rate limiting: 5 login attempts per 10 minutes per IP</li>
+    <li>Passwords hashed with bcrypt (10 rounds)</li>
+    <li>JWT stored in httpOnly cookie (<code>lf_session</code>)</li>
+    <li>CSRF protection on all state-changing requests</li>
+  </ul>
+</div>
+
+<h2>3.4 Password Reset</h2>
+<ol>
+  <li>On the login page, click <strong>"Forgot Password?"</strong></li>
+  <li>Enter your email address</li>
+  <li>Click <strong>"Send Reset Link"</strong></li>
+  <li>Check your email for the reset link</li>
+  <li>Click the link and enter your new password</li>
+  <li>Click <strong>"Reset Password"</strong></li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 4: DASHBOARD -->
+<h1>4. User Dashboard</h1>
+<p><strong>URL:</strong> /app/dashboard</p>
+
+<h2>4.1 Top Stat Cards</h2>
+<table>
+  <tr>
+    <th>Card</th>
+    <th>Description</th>
+    <th>Color</th>
+  </tr>
+  <tr>
+    <td><strong>Total Leads</strong></td>
+    <td>All leads in your CRM</td>
+    <td>Blue</td>
+  </tr>
+  <tr>
+    <td><strong>New Leads</strong></td>
+    <td>Leads not yet contacted</td>
+    <td>Green</td>
+  </tr>
+  <tr>
+    <td><strong>Qualified Leads</strong></td>
+    <td>Leads in qualification stage</td>
+    <td>Yellow</td>
+  </tr>
+  <tr>
+    <td><strong>Won Deals</strong></td>
+    <td>Successfully closed deals</td>
+    <td>Purple</td>
+  </tr>
+  <tr>
+    <td><strong>Pipeline Value</strong></td>
+    <td>Total value of open deals</td>
+    <td>Blue</td>
+  </tr>
+  <tr>
+    <td><strong>Revenue</strong></td>
+    <td>Total revenue from won deals</td>
+    <td>Green</td>
+  </tr>
+  <tr>
+    <td><strong>Conversion Rate</strong></td>
+    <td>Leads → Won percentage</td>
+    <td>Blue</td>
+  </tr>
+  <tr>
+    <td><strong>Overdue Follow-ups</strong></td>
+    <td>Follow-ups past due</td>
+    <td>Red (urgent)</td>
+  </tr>
+</table>
+
+<h2>4.2 Charts & Visualizations</h2>
+<ul>
+  <li><strong>Leads by Source (Pie Chart):</strong> Distribution from Website, WhatsApp, Facebook, IndiaMART, QR Code, etc.</li>
+  <li><strong>Leads by Owner (Bar Chart):</strong> Lead distribution across team members</li>
+  <li><strong>Conversion Funnel:</strong> Visual pipeline from New → Won</li>
+  <li><strong>14-Day Trend:</strong> Daily lead creation trend</li>
+</ul>
+
+<h2>4.3 Today's Follow-ups</h2>
+<p>A prioritized list of follow-ups due today including:</p>
+<ul>
+  <li>📞 Call follow-ups</li>
+  <li>💬 WhatsApp follow-ups</li>
+  <li>✉️ Email follow-ups</li>
+  <li>📅 Meeting follow-ups</li>
+</ul>
+
+<div class="tip-box">
+  <strong>Tip:</strong> Click any follow-up to jump to the lead detail page.
+</div>
+
+<hr class="section-divider">
+
+<!-- SECTION 5: LEAD MANAGEMENT -->
+<h1>5. Lead Management</h1>
+<p><strong>URL:</strong> /app/leads</p>
+
+<h2>5.1 Viewing All Leads</h2>
+<p>The leads table displays:</p>
+<ul>
+  <li><strong>Search Box:</strong> Type any name, phone, email, or company</li>
+  <li><strong>Filter Dropdowns:</strong> Status, Source, Owner, Priority, Date Range</li>
+  <li><strong>Sortable Columns:</strong> Click any column header to sort</li>
+  <li><strong>Pagination:</strong> 20 leads per page</li>
+</ul>
+
+<h2>5.2 Adding a New Lead</h2>
+<p><strong>Step-by-step:</strong></p>
+<ol>
+  <li>Click <strong>"Leads"</strong> in the left sidebar</li>
+  <li>Click <strong>"Add Lead"</strong> button (top-right)</li>
+  <li>Fill in the lead form:
+    <ul>
+      <li><strong>Name</strong> (required)</li>
+      <li><strong>Phone Number</strong> (optional)</li>
+      <li><strong>Email</strong> (optional)</li>
+      <li><strong>Company</strong> (optional)</li>
+      <li><strong>Source</strong> (dropdown: Website, WhatsApp, Facebook, etc.)</li>
+      <li><strong>Priority</strong> (Low, Medium, High, Urgent)</li>
+      <li><strong>Expected Value</strong> (₹ amount)</li>
+    </ul>
+  </li>
+  <li>Click <strong>"Create Lead"</strong></li>
+</ol>
+
+<h3>What Happens Automatically</h3>
+<ul>
+  <li>✅ <strong>Duplicate Detection:</strong> System checks for existing leads with same phone/email</li>
+  <li>✅ <strong>Lead Scoring:</strong> Automatic 0-100 score based on priority, value, and contact completeness</li>
+  <li>✅ <strong>Auto-Assignment:</strong> Lead assigned to least-loaded salesperson</li>
+  <li>✅ <strong>Notification:</strong> Salesperson receives instant notification</li>
+  <li>✅ <strong>Activity Log:</strong> Creation logged in lead timeline</li>
+</ul>
+
+<h2>5.3 Lead Detail Page</h2>
+<p>Click any lead name to open the full detail view.</p>
+
+<h3>Left Panel: Lead Information</h3>
+<ul>
+  <li>Customer Info: Name, phone, email, company</li>
+  <li>Tags: Color-coded labels</li>
+  <li>Notes: Free-text notes</li>
+  <li>Timeline: Complete history of all interactions</li>
+</ul>
+
+<h3>Right Sidebar: Actions & Quick Info</h3>
+<ul>
+  <li>Assigned Salesperson</li>
+  <li>Next Follow-up</li>
+  <li>Lead Score (0-100)</li>
+  <li>Priority Level</li>
+  <li>AI Suggestions</li>
+</ul>
+
+<h3>Action Buttons (One-Tap)</h3>
+<ul>
+  <li>📞 <strong>Call:</strong> Opens phone dialer</li>
+  <li>💬 <strong>WhatsApp:</strong> Opens WhatsApp with pre-filled message</li>
+  <li>✉️ <strong>Email:</strong> Opens email client</li>
+  <li><strong>Add Note:</strong> Record interaction details</li>
+  <li><strong>Schedule Follow-up:</strong> Pick date/time for next contact</li>
+  <li><strong>Mark Won/Lost:</strong> Close the deal</li>
+</ul>
+
+<h2>5.4 Import from CSV</h2>
+<ol>
+  <li>Click <strong>"Import"</strong> on the Leads page</li>
+  <li>Prepare your CSV file with columns: Name, Phone, Email, Company, Expected Value, Notes</li>
+  <li>Upload the file</li>
+  <li>System auto-skips duplicates and shows import count</li>
+</ol>
+
+<h2>5.5 Export Leads</h2>
+<ol>
+  <li>Apply any filters you want (optional)</li>
+  <li>Click <strong>"Export"</strong> button</li>
+  <li>A CSV file downloads with your filtered view</li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 6: SALES PIPELINE -->
+<h1>6. Sales Pipeline</h1>
+<p><strong>URL:</strong> /app/pipeline</p>
+
+<h2>6.1 Pipeline Overview</h2>
+<p>The pipeline is a <strong>Kanban-style board</strong> with columns representing deal stages:</p>
+<p style="text-align: center; font-size: 14pt; background: #f3f4f6; padding: 15px; border-radius: 8px;">
+  <strong>New → Contacted → Qualified → Proposal → Negotiation → Won | Lost</strong>
+</p>
+
+<h2>6.2 Drag-and-Drop</h2>
+<p><strong>Step-by-step:</strong></p>
+<ol>
+  <li>Open the Pipeline page</li>
+  <li>See all leads organized by stage columns</li>
+  <li><strong>Drag</strong> a lead card from one column</li>
+  <li><strong>Drop</strong> it into the next stage column</li>
+  <li>The move is automatically logged and reflected in reports</li>
+</ol>
+
+<h2>6.3 Lead Card Information</h2>
+<p>Each card displays:</p>
+<ul>
+  <li>Customer name</li>
+  <li>Company</li>
+  <li>Expected value (₹)</li>
+  <li>Assigned salesperson</li>
+  <li>Lead source</li>
+  <li>Next follow-up date</li>
+  <li>Lead score (color-coded)</li>
+</ul>
+
+<hr class="section-divider">
+
+<!-- SECTION 7: FOLLOW-UPS & TASKS -->
+<h1>7. Follow-ups & Tasks</h1>
+<p><strong>URL:</strong> /app/tasks</p>
+
+<h2>7.1 Follow-up Views</h2>
+<table>
+  <tr>
+    <th>View</th>
+    <th>Shows</th>
+    <th>Action Required</th>
+  </tr>
+  <tr>
+    <td><strong>Today</strong></td>
+    <td>Follow-ups due today</td>
+    <td>High priority</td>
+  </tr>
+  <tr>
+    <td><strong>Overdue</strong></td>
+    <td>Past-due follow-ups</td>
+    <td>URGENT - act now</td>
+  </tr>
+  <tr>
+    <td><strong>Upcoming</strong></td>
+    <td>Next few days</td>
+    <td>Plan ahead</td>
+  </tr>
+  <tr>
+    <td><strong>Missed</strong></td>
+    <td>Auto-detected missed</td>
+    <td>Review and reschedule</td>
+  </tr>
+  <tr>
+    <td><strong>Completed</strong></td>
+    <td>Finished follow-ups</td>
+    <td>Reference only</td>
+  </tr>
+</table>
+
+<h2>7.2 Creating a Follow-up</h2>
+<ol>
+  <li>Open any lead detail page</li>
+  <li>Click <strong>"Schedule Follow-up"</strong></li>
+  <li>Choose type: Call / WhatsApp / Email / Meeting / Task</li>
+  <li>Set <strong>Date & Time</strong></li>
+  <li>Add <strong>Notes</strong></li>
+  <li>Click <strong>"Schedule"</strong></li>
+</ol>
+
+<h2>7.3 Completing a Follow-up</h2>
+<ol>
+  <li>Open the Follow-ups page</li>
+  <li>Find the task you completed</li>
+  <li>Click the <strong>circular checkbox</strong> next to it</li>
+  <li>Done! It moves to "Completed" view</li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 8: QR CODE LEAD CAPTURE -->
+<h1>8. QR Code Lead Capture</h1>
+<p><strong>URL:</strong> /app/qr-codes</p>
+
+<h2>8.1 Creating a QR Code</h2>
+<p><strong>Step-by-step (Owner/Admin/Manager only):</strong></p>
+<ol>
+  <li>Click <strong>"QR Codes"</strong> in the sidebar</li>
+  <li>Click <strong>"Create QR Code"</strong></li>
+  <li>Fill in the form:
+    <ul>
+      <li><strong>Title:</strong> e.g., "Shop Counter", "Exhibition Stall"</li>
+      <li><strong>Description:</strong> Brief purpose</li>
+      <li><strong>Campaign:</strong> Select existing or create new</li>
+      <li><strong>Fields:</strong> Choose Name, Phone, Email, Message</li>
+    </ul>
+  </li>
+  <li>Click <strong>"Generate QR Code"</strong></li>
+</ol>
+
+<h2>8.2 Customer Experience</h2>
+<ol>
+  <li>📱 Customer <strong>scans QR code</strong> with phone camera</li>
+  <li>📝 Opens <strong>mobile-friendly form</strong></li>
+  <li>✅ Fills in requested fields and <strong>submits</strong></li>
+  <li>🎯 Lead created with <strong>source = QR</strong></li>
+  <li>👤 Auto-assigned to salesperson</li>
+  <li>🔔 Salesperson receives <strong>instant notification</strong></li>
+</ol>
+
+<h2>8.3 QR Code Management</h2>
+<p>Each QR code card shows:</p>
+<ul>
+  <li><strong>Scans:</strong> Total number of scans</li>
+  <li><strong>Leads Captured:</strong> Leads created</li>
+  <li><strong>Conversion Rate:</strong> Leads / Scans percentage</li>
+</ul>
+
+<hr class="section-divider">
+
+<!-- SECTION 9: QUOTATIONS -->
+<h1>9. Quotations (GST)</h1>
+<p><strong>URL:</strong> /app/quotations</p>
+
+<h2>9.1 Creating a Quotation</h2>
+<p><strong>Step-by-step:</strong></p>
+<ol>
+  <li>Click <strong>"Quotations"</strong> in the sidebar</li>
+  <li>Click <strong>"New Quotation"</strong></li>
+  <li>Add customer details:
+    <ul>
+      <li><strong>Customer Name</strong> (required)</li>
+      <li><strong>Company</strong> (optional)</li>
+      <li><strong>GSTIN</strong> (optional, for GST compliance)</li>
+      <li><strong>Email</strong> (optional)</li>
+    </ul>
+  </li>
+  <li>Add line items with Description, Quantity, Rate, Discount %, Tax %</li>
+  <li>Select GST Type: <strong>CGST+SGST</strong> (same state) or <strong>IGST</strong> (inter-state)</li>
+  <li>Set validity period and payment terms</li>
+  <li>Click <strong>"Create Quotation"</strong> — Auto-numbered QT-2026-0001</li>
+</ol>
+
+<h2>9.2 Quotation Workflow</h2>
+<p style="text-align: center; font-size: 12pt; background: #f3f4f6; padding: 15px; border-radius: 8px;">
+  <strong>Draft → Sent → Accepted / Rejected / Expired → Converted to Invoice</strong>
+</p>
+
+<h2>9.3 Converting to Invoice</h2>
+<ol>
+  <li>Open the quotation</li>
+  <li>Click <strong>"Convert to Invoice"</strong></li>
+  <li>System creates an invoice with all customer and item details</li>
+  <li>Quotation status changes to "Converted"</li>
+  <li>Invoice appears in the Invoices section</li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 10: INVOICES -->
+<h1>10. Invoices (GST)</h1>
+<p><strong>URL:</strong> /app/invoices</p>
+
+<h2>10.1 Creating an Invoice</h2>
+<ol>
+  <li>Click <strong>"Invoices"</strong> in the sidebar</li>
+  <li>Click <strong>"New Invoice"</strong></li>
+  <li>Add customer details and line items</li>
+  <li>Set <strong>Due Date</strong> and payment terms</li>
+  <li>Click <strong>"Create Invoice"</strong> — Auto-numbered INV-2026-0001</li>
+</ol>
+
+<h2>10.2 Recording Payments</h2>
+<p><strong>Step-by-step:</strong></p>
+<ol>
+  <li>Open the invoice</li>
+  <li>Click the <strong>₹ (Payment) icon</strong></li>
+  <li>Enter the payment amount</li>
+  <li>System auto-updates status to <strong>Partially Paid</strong> or <strong>Paid</strong></li>
+</ol>
+
+<h2>10.3 Invoice Status</h2>
+<table>
+  <tr>
+    <th>Status</th>
+    <th>Meaning</th>
+  </tr>
+  <tr>
+    <td><strong>Draft</strong></td>
+    <td>Being prepared</td>
+  </tr>
+  <tr>
+    <td><strong>Sent</strong></td>
+    <td>Shared with customer</td>
+  </tr>
+  <tr>
+    <td><strong>Partially Paid</strong></td>
+    <td>Some amount received</td>
+  </tr>
+  <tr>
+    <td><strong>Paid</strong></td>
+    <td>Fully paid</td>
+  </tr>
+  <tr>
+    <td><strong>Overdue</strong></td>
+    <td>Past due date</td>
+  </tr>
+</table>
+
+<hr class="section-divider">
+
+<!-- SECTION 11: AI ASSISTANT -->
+<h1>11. AI CRM Assistant</h1>
+<p><strong>URL:</strong> /app/ai-assistant</p>
+
+<h2>11.1 What Can AI Answer?</h2>
+<p>The AI assistant reads your <strong>live CRM data</strong> and answers questions like:</p>
+<ul>
+  <li>"How many leads do we have this week?"</li>
+  <li>"Which leads are overdue for follow-up?"</li>
+  <li>"Show me leads worth more than ₹5 lakh"</li>
+  <li>"Which source gives us the most leads?"</li>
+  <li>"What is our conversion rate?"</li>
+</ul>
+
+<h2>11.2 Using the Assistant</h2>
+<ol>
+  <li>Click <strong>"AI Assistant"</strong> in the sidebar</li>
+  <li>Type your question in the chat box</li>
+  <li>Press Enter or click Send</li>
+  <li>AI responds with data-backed answer</li>
+  <li>Conversation is saved for reference</li>
+</ol>
+
+<div class="info-box">
+  <strong>Data Privacy:</strong>
+  <ul>
+    <li>Salespeople only see their own leads' data</li>
+    <li>Managers/Owners see all organization data</li>
+    <li>AI only reads from your CRM — no external data</li>
+  </ul>
+</div>
+
+<hr class="section-divider">
+
+<!-- SECTION 12: AI FOLLOW-UP WRITER -->
+<h1>12. AI Follow-up Writer</h1>
+
+<h2>12.1 Using the AI Writer</h2>
+<ol>
+  <li>Open any lead detail page</li>
+  <li>Click <strong>"Write Follow-up"</strong> (AI button)</li>
+  <li>Choose options:
+    <ul>
+      <li><strong>Channel:</strong> WhatsApp / Email / Call</li>
+      <li><strong>Tone:</strong> Professional / Friendly / Short / Persuasive</li>
+      <li><strong>Language:</strong> English / Hindi / Hinglish</li>
+    </ul>
+  </li>
+  <li>Click <strong>"Generate"</strong></li>
+  <li>Review the generated message</li>
+  <li>Edit if needed, then copy and send!</li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 13: INTEGRATIONS -->
+<h1>13. Integrations & Webhooks</h1>
+<p><strong>URL:</strong> /app/integrations</p>
+
+<h2>13.1 Available Integrations</h2>
+<table>
+  <tr>
+    <th>Source</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td><strong>WhatsApp</strong></td>
+    <td>Receive leads via WhatsApp Business API</td>
+  </tr>
+  <tr>
+    <td><strong>Facebook</strong></td>
+    <td>Facebook Lead Ads integration</td>
+  </tr>
+  <tr>
+    <td><strong>IndiaMART</strong></td>
+    <td>IndiaMART seller leads</td>
+  </tr>
+  <tr>
+    <td><strong>Shopify</strong></td>
+    <td>E-commerce order leads</td>
+  </tr>
+  <tr>
+    <td><strong>Zapier</strong></td>
+    <td>Connect 5000+ apps</td>
+  </tr>
+  <tr>
+    <td><strong>REST API</strong></td>
+    <td>Custom integrations</td>
+  </tr>
+</table>
+
+<h2>13.2 Connecting a Source</h2>
+<ol>
+  <li>Click <strong>"Integrations"</strong> in the sidebar</li>
+  <li>Find the source you want to connect</li>
+  <li>Click <strong>"Connect"</strong></li>
+  <li>You'll receive a <strong>Webhook URL</strong> and <strong>Webhook Secret</strong></li>
+  <li>Configure your external system to POST leads to the webhook URL</li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 14: REPORTS -->
+<h1>14. Reports & Analytics</h1>
+<p><strong>URL:</strong> /app/reports</p>
+
+<h2>14.1 Report Metrics</h2>
+<ul>
+  <li><strong>Cards:</strong> Leads Created, Won, Lost, Conversion Rate, Revenue</li>
+  <li><strong>Charts:</strong> By Source, By Owner, By Status, By Stage, Trend</li>
+</ul>
+
+<h2>14.2 Exporting Reports</h2>
+<ol>
+  <li>Set your date range</li>
+  <li>Click <strong>"Export CSV"</strong></li>
+  <li>Download the complete report data</li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 15: BILLING -->
+<h1>15. Billing & Subscriptions</h1>
+<p><strong>URL:</strong> /app/billing</p>
+
+<h2>15.1 Available Plans</h2>
+<table>
+  <tr>
+    <th>Plan</th>
+    <th>Features</th>
+    <th>Price</th>
+  </tr>
+  <tr>
+    <td><strong>Starter</strong></td>
+    <td>Basic CRM, 5 users, 500 leads</td>
+    <td>₹999/month</td>
+  </tr>
+  <tr>
+    <td><strong>Growth</strong></td>
+    <td>Full CRM, 15 users, 5000 leads, AI features</td>
+    <td>₹2,499/month</td>
+  </tr>
+  <tr>
+    <td><strong>Business</strong></td>
+    <td>Unlimited users/leads, priority support</td>
+    <td>₹4,999/month</td>
+  </tr>
+</table>
+
+<hr class="section-divider">
+
+<!-- SECTION 16: TEAM MANAGEMENT -->
+<h1>16. Team Management</h1>
+<p><strong>URL:</strong> /app/team</p>
+
+<h2>16.1 Adding Team Members</h2>
+<ol>
+  <li>Click <strong>"Team"</strong> in the sidebar</li>
+  <li>Click <strong>"Add Member"</strong></li>
+  <li>Fill in Name, Email, Role</li>
+  <li>Click <strong>"Add Member"</strong></li>
+</ol>
+
+<h2>16.2 Role Hierarchy</h2>
+<p style="text-align: center; font-size: 12pt; background: #f3f4f6; padding: 15px; border-radius: 8px;">
+  <strong>Owner > Admin > Manager > Salesperson</strong>
+</p>
+
+<hr class="section-divider">
+
+<!-- SECTION 17: SETTINGS -->
+<h1>17. Settings</h1>
+<p><strong>URL:</strong> /app/settings</p>
+
+<h2>17.1 Profile Settings</h2>
+<ul>
+  <li>Name</li>
+  <li>Phone Number</li>
+  <li>Job Title</li>
+</ul>
+
+<h2>17.2 Assignment Rules</h2>
+<p>Configure which salesperson handles which lead source:</p>
+<ul>
+  <li>Website leads → Priya (web specialist)</li>
+  <li>WhatsApp leads → Karan (communication expert)</li>
+  <li>IndiaMART leads → Auto-assign</li>
+</ul>
+
+<h2>17.3 AI Configuration</h2>
+<ol>
+  <li>Go to <strong>Settings → AI</strong></li>
+  <li>Enter your <strong>API Key</strong></li>
+  <li>Select <strong>Provider</strong> (OpenAI-compatible)</li>
+  <li>Click <strong>"Save"</strong></li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 21: SUPER-ADMIN -->
+<h1>21. Super-Admin Panel</h1>
+<p><strong>URL:</strong> /admin</p>
+
+<h2>21.1 Access Control</h2>
+<div class="warning-box">
+  <strong>Important:</strong> Only emails listed in <code>SUPER_ADMIN_EMAILS</code> env variable can access the admin panel.
+</div>
+
+<h2>21.2 Admin Pages</h2>
+<table>
+  <tr>
+    <th>Page</th>
+    <th>Features</th>
+  </tr>
+  <tr>
+    <td><strong>Overview</strong></td>
+    <td>Platform totals, top orgs, recent signups, error feed</td>
+  </tr>
+  <tr>
+    <td><strong>Organizations</strong></td>
+    <td>All tenants, suspend/activate, change plan</td>
+  </tr>
+  <tr>
+    <td><strong>Users</strong></td>
+    <td>All accounts, deactivate/activate, change role</td>
+  </tr>
+  <tr>
+    <td><strong>System</strong></td>
+    <td>Health, memory, database, error feed</td>
+  </tr>
+</table>
+
+<h2>21.3 Managing Organizations</h2>
+<ol>
+  <li>Navigate to <strong>Organizations</strong></li>
+  <li>Click org name for details</li>
+  <li><strong>Suspend:</strong> Temporarily disable org</li>
+  <li><strong>Re-activate:</strong> Restore access</li>
+  <li><strong>Change Plan:</strong> Switch subscription</li>
+</ol>
+
+<hr class="section-divider">
+
+<!-- SECTION 22: TROUBLESHOOTING -->
+<h1>22. Troubleshooting</h1>
+
+<table>
+  <tr>
+    <th>Symptom</th>
+    <th>Cause</th>
+    <th>Fix</th>
+  </tr>
+  <tr>
+    <td>403 CSRF Error</td>
+    <td>Token rotated</td>
+    <td>Refresh the page</td>
+  </tr>
+  <tr>
+    <td>401 After Login</td>
+    <td>Session expired</td>
+    <td>Log in again</td>
+  </tr>
+  <tr>
+    <td>QR Code Doesn't Render</td>
+    <td>Package missing</td>
+    <td>Run npm install</td>
+  </tr>
+  <tr>
+    <td>Port in Use</td>
+    <td>Stale processes</td>
+    <td>Kill process on port</td>
+  </tr>
+  <tr>
+    <td>AI "Connect Your Key"</td>
+    <td>No API key</td>
+    <td>Settings → AI → Enter key</td>
+  </tr>
+</table>
+
+<hr class="section-divider">
+
+<!-- APPENDIX -->
+<h1>Appendix</h1>
+
+<h2>A. Keyboard Shortcuts</h2>
+<table>
+  <tr>
+    <th>Shortcut</th>
+    <th>Action</th>
+  </tr>
+  <tr>
+    <td><code>/</code></td>
+    <td>Focus search box</td>
+  </tr>
+  <tr>
+    <td><code>Esc</code></td>
+    <td>Close dialogs</td>
+  </tr>
+  <tr>
+    <td><code>Ctrl+S</code></td>
+    <td>Save (in forms)</td>
+  </tr>
+</table>
+
+<h2>B. Glossary</h2>
+<table>
+  <tr>
+    <th>Term</th>
+    <th>Definition</th>
+  </tr>
+  <tr>
+    <td><strong>Lead</strong></td>
+    <td>A potential customer or sales opportunity</td>
+  </tr>
+  <tr>
+    <td><strong>Pipeline</strong></td>
+    <td>Visual representation of sales stages</td>
+  </tr>
+  <tr>
+    <td><strong>GST</strong></td>
+    <td>Goods and Services Tax (Indian tax system)</td>
+  </tr>
+  <tr>
+    <td><strong>Webhook</strong></td>
+    <td>HTTP callback for real-time data sync</td>
+  </tr>
+  <tr>
+    <td><strong>Multi-tenant</strong></td>
+    <td>Single app serving multiple organizations</td>
+  </tr>
+  <tr>
+    <td><strong>RBAC</strong></td>
+    <td>Role-Based Access Control</td>
+  </tr>
+</table>
+
+<hr class="section-divider">
+
+<div style="text-align: center; padding: 30px; color: #6b7280;">
+  <p><strong>LeadFlow AI — Complete User & Admin Guide</strong></p>
+  <p>Version 1.0 | August 10, 2026</p>
+  <p>For developer documentation, see DEVELOPER_GUIDE.md</p>
+  <p>For API reference, see API.md</p>
+</div>
+
+</body>
+</html>

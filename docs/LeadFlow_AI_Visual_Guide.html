@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LeadFlow AI - Visual Workflow Guide with Screenshots</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #10b981;
+            --accent: #f59e0b;
+            --danger: #ef4444;
+            --bg: #0f172a;
+            --bg-card: #1e293b;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -1;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.15) 0%, transparent 50%);
+            animation: bgPulse 15s ease-in-out infinite;
+        }
+
+        @keyframes bgPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Header */
+        header {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            animation: slideDown 0.5s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            width: 50px; height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            animation: logoSpin 3s ease-in-out infinite;
+        }
+
+        @keyframes logoSpin {
+            0%, 100% { transform: rotateY(0deg); }
+            50% { transform: rotateY(180deg); }
+        }
+
+        .logo-text h1 {
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        nav {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .nav-btn {
+            padding: 0.5rem 1rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn:hover, .nav-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            padding: 4rem 2rem;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Section Styles */
+        .section {
+            margin-bottom: 4rem;
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-icon {
+            width: 60px; height: 60px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            animation: iconBounce 2s ease-in-out infinite;
+        }
+
+        @keyframes iconBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .section-icon.blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .section-icon.green { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .section-icon.pink { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .section-icon.cyan { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+
+        .section-title h2 {
+            font-size: 1.75rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .section-title p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* Screenshot Card */
+        .screenshot-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .screenshot-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .screenshot-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .screenshot-header h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .screenshot-header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .screenshot-image {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            object-position: top;
+            background: #000;
+            transition: transform 0.5s ease;
+        }
+
+        .screenshot-card:hover .screenshot-image {
+            transform: scale(1.02);
+        }
+
+        .screenshot-steps {
+            padding: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .step-list {
+            list-style: none;
+        }
+
+        .step-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+        }
+
+        .step-num {
+            flex-shrink: 0;
+            width: 28px; height: 28px;
+            background: var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .step-text {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .step-text strong {
+            color: var(--text);
+        }
+
+        /* Workflow Grid */
+        .workflow-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .workflow-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .workflow-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--primary);
+        }
+
+        .workflow-card h4 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        /* Pipeline Animation */
+        .pipeline-demo {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 2rem;
+            border: 1px solid var(--border);
+            margin: 2rem 0;
+        }
+
+        .pipeline-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .pipeline-stage {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            text-align: center;
+            min-width: 100px;
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .pipeline-stage:hover {
+            transform: scale(1.05);
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .pipeline-stage.won {
+            border-color: var(--secondary);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .pipeline-arrow {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            animation: arrowPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes arrowPulse {
+            0%, 100% { opacity: 0.5; transform: translateX(0); }
+            50% { opacity: 1; transform: translateX(5px); }
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover, .tab.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Feature Cards */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-desc {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            margin-top: 4rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2rem; }
+            .pipeline-flow { flex-direction: column; }
+            .pipeline-arrow { transform: rotate(90deg); }
+        }
+
+        /* Scroll Animation */
+        .animate-on-scroll {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s ease-out;
+        }
+
+        .animate-on-scroll.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">🚀</div>
+                <div class="logo-text">
+                    <h1>LeadFlow AI</h1>
+                    <p style="color: var(--text-muted); font-size: 0.75rem;">Visual Workflow Guide</p>
+                </div>
+            </div>
+            <nav>
+                <button class="nav-btn active" onclick="showSection('screenshots')">📸 Screenshots</button>
+                <button class="nav-btn" onclick="showSection('workflow')">🔄 Workflow</button>
+                <button class="nav-btn" onclick="showSection('features')">✨ Features</button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- Hero -->
+        <section class="hero">
+            <h1>LeadFlow AI Visual Guide</h1>
+            <p>Interactive walkthrough with real screenshots showing every feature of the CRM</p>
+        </section>
+
+        <!-- Screenshots Section -->
+        <section id="screenshots" class="section animate-on-scroll">
+            <div class="section-header">
+                <div class="section-icon blue">📸</div>
+                <div class="section-title">
+                    <h2>Application Screenshots</h2>
+                    <p>Real screenshots from the running LeadFlow AI application</p>
+                </div>
+            </div>
+
+            <!-- Marketing & Auth -->
+            <div class="tabs">
+                <div class="tab active" onclick="showTab('marketing')">Marketing</div>
+                <div class="tab" onclick="showTab('crm')">CRM Core</div>
+                <div class="tab" onclick="showTab('sales')">Sales</div>
+                <div class="tab" onclick="showTab('tools')">Tools</div>
+            </div>
+
+            <!-- Marketing Tab -->
+            <div id="marketing-tab" class="tab-content active">
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>🏠 Homepage</h3>
+                        <p>Professional marketing site with hero section, features, and pricing</p>
+                    </div>
+                    <img src="screenshots/01-homepage.png" alt="LeadFlow AI Homepage" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text">Landing page with <strong>value proposition</strong> and CTA</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Features grid</strong> showcasing CRM capabilities</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>Pricing section</strong> with three tiers</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Navigation</strong> to Login and Signup</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>🔐 Login Page</h3>
+                        <p>Secure authentication with rate limiting and CSRF protection</p>
+                    </div>
+                    <img src="screenshots/02-login-page.png" alt="Login Page" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text">Enter <strong>email</strong> and <strong>password</strong></span></li>
+                            <li><span class="step-num">2</span><span class="step-text">Rate limiting: <strong>5 attempts per 10 minutes</strong></span></li>
+                            <li><span class="step-num">3</span><span class="step-text">JWT stored in <strong>httpOnly cookie</strong></span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Forgot Password</strong> link for recovery</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CRM Core Tab -->
+            <div id="crm-tab" class="tab-content">
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>📊 Dashboard</h3>
+                        <p>Real-time analytics with key metrics and visualizations</p>
+                    </div>
+                    <img src="screenshots/03-dashboard.png" alt="Dashboard" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>Stat cards</strong> with Total Leads, Revenue, Conversion Rate</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Charts</strong> for leads by source and owner</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>Today's Follow-ups</strong> list for daily tasks</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Overdue alerts</strong> in red for urgent items</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>👥 Leads Management</h3>
+                        <p>Complete lead table with search, filter, and bulk operations</p>
+                    </div>
+                    <img src="screenshots/04-leads.png" alt="Leads Page" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>Search box</strong> for name, phone, email, company</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Filter dropdowns</strong> for status, source, owner</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>Sortable columns</strong> with click headers</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Bulk actions</strong> for assign, status, tag, delete</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sales Tab -->
+            <div id="sales-tab" class="tab-content">
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>🔄 Sales Pipeline</h3>
+                        <p>Kanban-style board with drag-and-drop functionality</p>
+                    </div>
+                    <img src="screenshots/05-pipeline.png" alt="Pipeline" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>Visual columns</strong> for each stage</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Drag and drop</strong> to move leads between stages</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>Lead cards</strong> with value, owner, score</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Auto-logging</strong> of stage changes</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>📋 Follow-ups & Tasks</h3>
+                        <p>Never miss a follow-up with prioritized task views</p>
+                    </div>
+                    <img src="screenshots/06-follow-ups.png" alt="Follow-ups" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>Today view</strong> for immediate tasks</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Overdue view</strong> for urgent follow-ups</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>One-click complete</strong> with checkbox</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Auto-detection</strong> of missed follow-ups</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tools Tab -->
+            <div id="tools-tab" class="tab-content">
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>📱 QR Code Lead Capture</h3>
+                        <p>Generate QR codes for physical locations</p>
+                    </div>
+                    <img src="screenshots/07-qr-codes.png" alt="QR Codes" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>Create QR codes</strong> with title and campaign</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Download PNG</strong> for printing</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>Track scans</strong> and conversion rates</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Auto-assign</strong> captured leads to salespeople</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>🤖 AI Assistant</h3>
+                        <p>Chat with your CRM data using natural language</p>
+                    </div>
+                    <img src="screenshots/10-ai-assistant.png" alt="AI Assistant" class="screenshot-image">
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>Natural language</strong> queries about your data</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Live data</strong> from your CRM database</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>Conversation history</strong> saved for reference</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Privacy</strong> - salespeople see only their leads</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>📄 Quotations & Invoices</h3>
+                        <p>GST-compliant documents with auto-calculation</p>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <img src="screenshots/08-quotations.png" alt="Quotations" class="screenshot-image">
+                        <img src="screenshots/09-invoices.png" alt="Invoices" class="screenshot-image">
+                    </div>
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>GST auto-calculation</strong> (CGST/SGST/IGST)</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Auto-numbering</strong> (QT-2026-0001, INV-2026-0001)</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>PDF download</strong> for sharing</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Convert quotation to invoice</strong> in one click</span></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="screenshot-card">
+                    <div class="screenshot-header">
+                        <h3>📊 Reports & Settings</h3>
+                        <p>Analytics and configuration options</p>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <img src="screenshots/11-reports.png" alt="Reports" class="screenshot-image">
+                        <img src="screenshots/12-settings.png" alt="Settings" class="screenshot-image">
+                    </div>
+                    <div class="screenshot-steps">
+                        <ul class="step-list">
+                            <li><span class="step-num">1</span><span class="step-text"><strong>Date-range analytics</strong> with export to CSV</span></li>
+                            <li><span class="step-num">2</span><span class="step-text"><strong>Assignment rules</strong> per lead source</span></li>
+                            <li><span class="step-num">3</span><span class="step-text"><strong>AI configuration</strong> with API key storage</span></li>
+                            <li><span class="step-num">4</span><span class="step-text"><strong>Profile and org settings</strong></span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Workflow Section -->
+        <section id="workflow" class="section animate-on-scroll" style="display: none;">
+            <div class="section-header">
+                <div class="section-icon green">🔄</div>
+                <div class="section-title">
+                    <h2>User Workflow</h2>
+                    <p>Step-by-step guide for daily CRM operations</p>
+                </div>
+            </div>
+
+            <!-- Lead Capture Flow -->
+            <div class="pipeline-demo">
+                <h3 style="text-align: center; margin-bottom: 1.5rem;">📥 Lead Capture Flow</h3>
+                <div class="pipeline-flow">
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">📱</div>
+                        <div style="font-weight: 600;">QR Scan / Web Form</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">➕</div>
+                        <div style="font-weight: 600;">Lead Created</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">🤖</div>
+                        <div style="font-weight: 600;">Auto-Assign</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">🔔</div>
+                        <div style="font-weight: 600;">Notification</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">📞</div>
+                        <div style="font-weight: 600;">Follow-up</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sales Pipeline Flow -->
+            <div class="pipeline-demo">
+                <h3 style="text-align: center; margin-bottom: 1.5rem;">💰 Sales Pipeline Flow</h3>
+                <div class="pipeline-flow">
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">🆕</div>
+                        <div style="font-weight: 600;">New</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">📞</div>
+                        <div style="font-weight: 600;">Contacted</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">✅</div>
+                        <div style="font-weight: 600;">Qualified</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">📄</div>
+                        <div style="font-weight: 600;">Proposal</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage">
+                        <div style="font-size: 1.5rem;">🤝</div>
+                        <div style="font-weight: 600;">Negotiation</div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-stage won">
+                        <div style="font-size: 1.5rem;">🎉</div>
+                        <div style="font-weight: 600;">Won!</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Workflow Cards -->
+            <div class="workflow-grid">
+                <div class="workflow-card">
+                    <h4>🌅 Morning Routine</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span><span class="step-text">Check <strong>Dashboard</strong> for overnight leads</span></li>
+                        <li><span class="step-num">2</span><span class="step-text">Review <strong>Overdue Follow-ups</strong> (red alerts)</span></li>
+                        <li><span class="step-num">3</span><span class="step-text">Plan <strong>Today's Tasks</strong></span></li>
+                        <li><span class="step-num">4</span><span class="step-text">Use <strong>AI Assistant</strong> for insights</span></li>
+                    </ul>
+                </div>
+                <div class="workflow-card">
+                    <h4>📞 Lead Follow-up</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span><span class="step-text">Open lead from <strong>Follow-ups</strong> page</span></li>
+                        <li><span class="step-num">2</span><span class="step-text">Use <strong>one-tap actions</strong> (Call/WhatsApp/Email)</span></li>
+                        <li><span class="step-num">3</span><span class="step-text">Log interaction in <strong>Timeline</strong></span></li>
+                        <li><span class="step-num">4</span><span class="step-text">Schedule <strong>next follow-up</strong></span></li>
+                    </ul>
+                </div>
+                <div class="workflow-card">
+                    <h4>📄 Quote & Invoice</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span><span class="step-text">Create <strong>Quotation</strong> with GST items</span></li>
+                        <li><span class="step-num">2</span><span class="step-text"><strong>Download PDF</strong> and send to customer</span></li>
+                        <li><span class="step-num">3</span><span class="step-text">Convert to <strong>Invoice</strong> when accepted</span></li>
+                        <li><span class="step-num">4</span><span class="step-text"><strong>Record payment</strong> when received</span></li>
+                    </ul>
+                </div>
+                <div class="workflow-card">
+                    <h4>🎯 End of Day</h4>
+                    <ul class="step-list">
+                        <li><span class="step-num">1</span><span class="step-text">Update <strong>lead statuses</strong> and stages</span></li>
+                        <li><span class="step-num">2</span><span class="step-text">Check <strong>Reports</strong> for daily metrics</span></li>
+                        <li><span class="step-num">3</span><span class="step-text">Schedule <strong>tomorrow's follow-ups</strong></span></li>
+                        <li><span class="step-num">4</span><span class="step-text">Review <strong>Pipeline</strong> for deal progress</span></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="section animate-on-scroll" style="display: none;">
+            <div class="section-header">
+                <div class="section-icon pink">✨</div>
+                <div class="section-title">
+                    <h2>Key Features</h2>
+                    <p>Powerful capabilities that drive your sales</p>
+                </div>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <div class="feature-title">Secure Authentication</div>
+                    <div class="feature-desc">bcrypt passwords, JWT httpOnly cookies, CSRF protection, rate limiting</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏢</div>
+                    <div class="feature-title">Multi-Tenant Isolation</div>
+                    <div class="feature-desc">Complete data isolation between organizations</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <div class="feature-title">AI-Powered Insights</div>
+                    <div class="feature-desc">Chat with your data, generate follow-ups</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-title">Real-time Analytics</div>
+                    <div class="feature-desc">Dashboard, reports, charts, CSV export</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <div class="feature-title">QR Code Capture</div>
+                    <div class="feature-desc">Capture leads from physical locations</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🧾</div>
+                    <div class="feature-title">GST Compliant</div>
+                    <div class="feature-desc">Auto-calculate CGST/SGST/IGST</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔗</div>
+                    <div class="feature-title">Integrations Ready</div>
+                    <div class="feature-desc">WhatsApp, Facebook, IndiaMART, Zapier</div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <div class="feature-title">Team Management</div>
+                    <div class="feature-desc">RBAC roles, auto-assignment</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <p>LeadFlow AI — AI-powered CRM & Lead Management for Indian Businesses</p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">Version 1.0 | August 10, 2026</p>
+    </footer>
+
+    <script>
+        // Section Navigation
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+            document.getElementById(sectionId).style.display = 'block';
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Tab Navigation
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(tabId + '-tab').classList.add('active');
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+
+        // Scroll Animation
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+    </script>
+</body>
+</html>
