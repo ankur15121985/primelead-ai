@@ -32,6 +32,8 @@ function resetDb() {
   process.env.LOGIN_RATE_LIMIT = '500';
   process.env.LOGIN_MAX_ATTEMPTS = '5';
   process.env.LOGIN_LOCK_MINUTES = '15';
+  // Demo payment provider webhook signing secret.
+  process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret';
   execSync('npx prisma db push --skip-generate --accept-data-loss', {
     cwd: path.join(__dirname, '..', '..'),
     stdio: 'pipe',
@@ -50,9 +52,9 @@ beforeAll(async () => {
   // Seed the three pricing plans (fresh test DB has none)
   await prismaMod.prisma.plan.createMany({
     data: [
-      { slug: 'starter', name: 'Starter', priceMonthly: 0, priceYearly: 0 },
-      { slug: 'growth', name: 'Growth', priceMonthly: 149900, priceYearly: 1499000 },
-      { slug: 'business', name: 'Business', priceMonthly: 399900, priceYearly: 3999000 },
+      { slug: 'starter', name: 'Starter', priceMonthly: 0, priceYearly: 0, userLimit: 2, leadLimit: 1000 },
+      { slug: 'growth', name: 'Growth', priceMonthly: 149900, priceYearly: 1499000, userLimit: 10, leadLimit: 25000 },
+      { slug: 'business', name: 'Business', priceMonthly: 399900, priceYearly: 3999000, userLimit: 0, leadLimit: 0 },
     ],
   });
 });
@@ -131,6 +133,11 @@ describe('Lead lifecycle (authenticated)', () => {
   });
 
   it('creates a lead and auto-assigns it to the least-loaded salesperson', async () => {
+    // STARTER caps at 2 users — this test needs 3, so move to GROWTH (10).
+    const me = await agent.get('/api/auth/me');
+    const { prisma } = await import('../lib/prisma');
+    await prisma.organization.update({ where: { id: me.body.data.org.id }, data: { plan: 'GROWTH' } });
+
     const csrf = await getCsrf();
     // owner adds two salespeople
     const s1 = await agent.post('/api/team').set('x-csrf-token', csrf).send({
@@ -1116,5 +1123,208 @@ describe('Phase 1 · paise money storage', () => {
     const q = res.body.data.quotation;
     expect(q.subtotal).toBe(99.99);
     expect(q.total).toBeCloseTo(117.99, 2); // 99.99 + 17.9982 → rounds to paise 18.00
+  });
+});
+
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 2 — payments, subscriptions, webhook idempotency, plan limits
+// ────────────────────────────────────────────────────────────────────────
+
+async function demoWebhook(
+  paymentId: string,
+  kind: 'PAYMENT_CAPTURED' | 'PAYMENT_FAILED' | 'REFUND_PROCESSED' = 'PAYMENT_CAPTURED',
+  extra: Record<string, unknown> = {}
+) {
+  const { buildDemoWebhook } = await import('../payments/demo');
+  const { headers, rawBody } = buildDemoWebhook(kind, paymentId, extra);
+  return { secret: headers['x-webhook-secret'], body: rawBody.toString('utf8') };
+}
+
+async function fireDemoWebhook(paymentId: string, kind: 'PAYMENT_CAPTURED' | 'PAYMENT_FAILED' | 'REFUND_PROCESSED' = 'PAYMENT_CAPTURED', extra: Record<string, unknown> = {}) {
+  const w = await demoWebhook(paymentId, kind, extra);
+  return request(server)
+    .post('/api/webhooks/payments/demo')
+    .set('Content-Type', 'application/json')
+    .set('x-webhook-secret', w.secret)
+    .send(w.body);
+}
+
+describe('Phase 2 · payment webhooks', () => {
+  it('rejects unsigned and incorrectly-signed provider webhooks', async () => {
+    const noSig = await request(server).post('/api/webhooks/payments/demo').set('Content-Type', 'application/json').send('{"type":"payment.captured","paymentId":"x"}');
+    expect(noSig.status).toBe(401);
+    expect(noSig.body.error.code).toBe('INVALID_SIGNATURE');
+
+    const badSig = await request(server)
+      .post('/api/webhooks/payments/demo')
+      .set('Content-Type', 'application/json')
+      .set('x-webhook-secret', 'wrong-secret')
+      .send('{"type":"payment.captured","paymentId":"x"}');
+    expect(badSig.status).toBe(401);
+  });
+
+  it('demo upgrade starts a trial with a pending payment; a signed webhook activates it', async () => {
+    const { agent: a } = await signupFresh('Pay Owner', 'Pay Org');
+
+    const up = await a.post('/api/billing/upgrade').set('x-csrf-token', await getCsrf(a)).send({ planSlug: 'growth', period: 'MONTHLY' });
+    expect(up.status).toBe(200);
+    expect(up.body.data.applied).toBe(true);
+    expect(up.body.data.mode).toBe('demo');
+
+    const billing = await a.get('/api/billing');
+    expect(billing.body.data.currentPlan.slug).toBe('growth');
+    expect(billing.body.data.subscription.status).toBe('TRIAL');
+    const pending = billing.body.data.payments.find((p: any) => p.status === 'PENDING');
+    expect(pending).toBeTruthy();
+
+    const sim = await a.post('/api/billing/demo/complete').set('x-csrf-token', await getCsrf(a)).send({ paymentId: pending.id });
+    expect(sim.status).toBe(200);
+    expect(sim.body.data.simulated).toBe(true);
+
+    const after = await a.get('/api/billing');
+    expect(after.body.data.subscription.status).toBe('ACTIVE');
+    const settled = after.body.data.payments.find((p: any) => p.id === pending.id);
+    expect(settled.status).toBe('SUCCEEDED');
+    expect(settled.paidAt).toBeTruthy();
+    expect(after.body.data.org.plan).toBe('GROWTH');
+  });
+
+  it('is idempotent — the same provider event is acknowledged, never reprocessed', async () => {
+    const { agent: a } = await signupFresh('Idem Owner', 'Idem Org');
+    await a.post('/api/billing/upgrade').set('x-csrf-token', await getCsrf(a)).send({ planSlug: 'growth', period: 'MONTHLY' });
+    const billing = await a.get('/api/billing');
+    const payment = billing.body.data.payments.find((p: any) => p.status === 'PENDING');
+
+    const first = await fireDemoWebhook(payment.id);
+    expect(first.status).toBe(200);
+    expect(first.body.data.duplicate).toBe(false);
+
+    const second = await fireDemoWebhook(payment.id);
+    expect(second.status).toBe(200);
+    expect(second.body.data.duplicate).toBe(true);
+
+    const { prisma } = await import('../lib/prisma');
+    const count = await prisma.webhookEvent.count({ where: { provider: 'demo', eventId: `demo:payment.captured:${payment.id}` } });
+    expect(count).toBe(1);
+  });
+});
+
+describe('Phase 2 · payment lifecycle', () => {
+  it('a failed-payment webhook marks the payment failed and the subscription past due', async () => {
+    const { agent: a } = await signupFresh('Fail Owner', 'Fail Org');
+    await a.post('/api/billing/upgrade').set('x-csrf-token', await getCsrf(a)).send({ planSlug: 'growth', period: 'MONTHLY' });
+    let billing = await a.get('/api/billing');
+    let payment = billing.body.data.payments.find((p: any) => p.status === 'PENDING');
+
+    // First a successful payment → ACTIVE
+    await a.post('/api/billing/demo/complete').set('x-csrf-token', await getCsrf(a)).send({ paymentId: payment.id });
+    billing = await a.get('/api/billing');
+    expect(billing.body.data.subscription.status).toBe('ACTIVE');
+
+    // A second payment attempt fails → FAILED + PAST_DUE
+    await a.post('/api/billing/upgrade').set('x-csrf-token', await getCsrf(a)).send({ planSlug: 'business', period: 'MONTHLY' });
+    billing = await a.get('/api/billing');
+    payment = billing.body.data.payments.find((p: any) => p.status === 'PENDING');
+
+    const res = await fireDemoWebhook(payment.id, 'PAYMENT_FAILED');
+    expect(res.status).toBe(200);
+
+    billing = await a.get('/api/billing');
+    const failed = billing.body.data.payments.find((p: any) => p.id === payment.id);
+    expect(failed.status).toBe('FAILED');
+    expect(billing.body.data.subscription.status).toBe('PAST_DUE');
+  });
+
+  it('a refund webhook records the refunded amount and marks the payment refunded', async () => {
+    const { agent: a } = await signupFresh('Refund Owner', 'Refund Org');
+    await a.post('/api/billing/upgrade').set('x-csrf-token', await getCsrf(a)).send({ planSlug: 'growth', period: 'MONTHLY' });
+    const billing = await a.get('/api/billing');
+    const payment = billing.body.data.payments.find((p: any) => p.status === 'PENDING');
+    await a.post('/api/billing/demo/complete').set('x-csrf-token', await getCsrf(a)).send({ paymentId: payment.id });
+
+    const res = await fireDemoWebhook(payment.id, 'REFUND_PROCESSED', { amountPaise: 149900 });
+    expect(res.status).toBe(200);
+
+    const after = await a.get('/api/billing');
+    const refunded = after.body.data.payments.find((p: any) => p.id === payment.id);
+    expect(refunded.status).toBe('REFUNDED');
+    expect(refunded.refundedAmount).toBe(1499);
+  });
+
+  it('refuses to settle a payment whose amount does not match the invoice', async () => {
+    const { agent: a } = await signupFresh('Mismatch Owner', 'Mismatch Org');
+    await a.post('/api/billing/upgrade').set('x-csrf-token', await getCsrf(a)).send({ planSlug: 'growth', period: 'MONTHLY' });
+    const billing = await a.get('/api/billing');
+    const payment = billing.body.data.payments.find((p: any) => p.status === 'PENDING');
+
+    const res = await fireDemoWebhook(payment.id, 'PAYMENT_CAPTURED', { amountPaise: 1 });
+    expect(res.status).toBe(500); // provider retries — nothing was settled
+
+    const after = await a.get('/api/billing');
+    const still = after.body.data.payments.find((p: any) => p.id === payment.id);
+    expect(still.status).toBe('PENDING');
+    expect(after.body.data.subscription.status).toBe('TRIAL');
+  });
+
+  it('keeps payments tenant-isolated', async () => {
+    const { agent: a } = await signupFresh('Iso Owner A', 'Isolation A');
+    await a.post('/api/billing/upgrade').set('x-csrf-token', await getCsrf(a)).send({ planSlug: 'growth', period: 'MONTHLY' });
+    const billing = await a.get('/api/billing');
+    const payment = billing.body.data.payments.find((p: any) => p.status === 'PENDING');
+
+    const { agent: b } = await signupFresh('Iso Owner B', 'Isolation B');
+    const poll = await b.get(`/api/billing/payments/${payment.id}`);
+    expect(poll.status).toBe(404);
+    const simulate = await b.post('/api/billing/demo/complete').set('x-csrf-token', await getCsrf(b)).send({ paymentId: payment.id });
+    expect(simulate.status).toBe(404);
+  });
+});
+
+describe('Phase 2 · plan-driven usage limits', () => {
+  it('enforces lead and user caps from the Plan table', async () => {
+    const { prisma } = await import('../lib/prisma');
+    await prisma.plan.create({
+      data: { slug: 'limited', name: 'Limited', priceMonthly: 0, priceYearly: 0, userLimit: 1, leadLimit: 2 },
+    });
+    const { agent: a } = await signupFresh('Limit Owner', 'Limit Org');
+    const me = await a.get('/api/auth/me');
+    await prisma.organization.update({ where: { id: me.body.data.org.id }, data: { plan: 'LIMITED' } });
+
+    // lead cap: exactly 2 allowed, the 3rd is blocked with a friendly 403
+    for (const phone of ['9811000001', '9811000002']) {
+      const ok = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: `Lead ${phone}`, phone });
+      expect(ok.status).toBe(201);
+    }
+    const blocked = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'Lead Over', phone: '9811000003' });
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error.code).toBe('LIMIT_EXCEEDED');
+    expect(blocked.body.error.message).toContain('leads limit');
+
+    // user cap: the owner is the only user (limit 1) → invites are blocked
+    const invite = await a.post('/api/team').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Extra Member',
+      email: 'extra@test.com',
+      role: 'SALES',
+      password: 'StrongPass123',
+    });
+    expect(invite.status).toBe(403);
+    expect(invite.body.error.code).toBe('LIMIT_EXCEEDED');
+
+    // a plan with 0 limits is unlimited
+    const { agent: b } = await signupFresh('Unlimited Owner', 'Unlimited Org');
+    for (let i = 0; i < 3; i++) {
+      const ok = await b.post('/api/leads').set('x-csrf-token', await getCsrf(b)).send({ name: `U Lead ${i}`, phone: `98910000${i}` });
+      expect(ok.status).toBe(201);
+    }
+  });
+
+  it('exposes plan limits in the billing payload', async () => {
+    const { agent: a } = await signupFresh('Limits View', 'Limits Org');
+    const res = await a.get('/api/billing');
+    expect(res.status).toBe(200);
+    const growth = res.body.data.plans.find((p: any) => p.slug === 'growth');
+    expect(growth.userLimit).toBe(10);
+    expect(growth.leadLimit).toBe(25000);
   });
 });

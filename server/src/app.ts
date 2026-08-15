@@ -24,6 +24,7 @@ import invoicesRoutes from './routes/invoices.routes';
 import reportsRoutes from './routes/reports.routes';
 import integrationsRoutes from './routes/integrations.routes';
 import webhooksRoutes from './routes/webhooks.routes';
+import paymentWebhooksRoutes from './routes/payment-webhooks.routes';
 import billingRoutes from './routes/billing.routes';
 import contactsRoutes from './routes/contacts.routes';
 import adminRoutes from './routes/admin.routes';
@@ -51,15 +52,20 @@ export function createApp() {
     })
   );
 
+  app.use(requestId);
+
+  // Payment webhooks need the RAW body for HMAC signature verification, so
+  // they are mounted BEFORE express.json() parses (and consumes) the stream.
+  app.use('/api/webhooks/payments', express.raw({ type: '*/*', limit: '1mb' }), paymentWebhooksRoutes);
+
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.use(cookieParser());
-  app.use(requestId);
 
   app.use('/api', apiLimiter);
   app.use('/api', ensureCsrfCookie);
 
-  // Inbound webhooks authenticate via their own secret header (no browser
+  // Inbound lead webhooks authenticate via their own secret header (no browser
   // cookies exist), so they are mounted before the double-submit CSRF gate.
   app.use('/api/webhooks', webhooksRoutes);
 

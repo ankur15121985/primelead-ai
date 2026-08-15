@@ -4,6 +4,7 @@ import { computeLeadScore, sourceLabel, type Priority } from '../constants';
 import { assignLeadOwner, recordAssignment } from './assignment';
 import { notify } from '../lib/serializers';
 import { rupeesToPaise, paiseToRupees } from '../lib/money';
+import { assertWithinLimit } from './limits';
 
 export interface CreateLeadInput {
   orgId: string;
@@ -63,6 +64,10 @@ export async function findDuplicate(orgId: string, phone?: string | null, email?
  */
 export async function createLead(input: CreateLeadInput) {
   const { orgId, actorId } = input;
+
+  // Plan-driven usage cap (0 = unlimited) — enforced for every entry point.
+  await assertWithinLimit(orgId, 'leads');
+
   const nPhone = normalizePhone(input.phone);
   const nEmail = normalizeEmail(input.email);
 

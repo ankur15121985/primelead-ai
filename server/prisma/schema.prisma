@@ -548,30 +548,35 @@ model VerificationToken {
 
 model Plan {
   id           String  @id @default(cuid())
-  slug         String  @unique // starter | growth | business
+  slug         String  @unique // starter | growth | business | custom
   name         String
   priceMonthly Int // paise
   priceYearly  Int // paise
   features     Json?
+  // Usage limits — config-driven, 0 = unlimited. Never hard-code these in code.
+  userLimit    Int     @default(0) // 0 = unlimited
+  leadLimit    Int     @default(0) // 0 = unlimited
   active       Boolean @default(true)
   createdAt    DateTime @default(now())
   subscriptions Subscription[]
 }
 
 model Subscription {
-  id            String       @id @default(cuid())
-  orgId         String       @unique
-  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  planId        String?
-  plan          Plan?        @relation(fields: [planId], references: [id])
-  status        String       @default("TRIAL") // TRIAL | ACTIVE | PAST_DUE | CANCELLED
-  period        String       @default("MONTHLY") // MONTHLY | YEARLY
-  startsAt      DateTime     @default(now())
-  endsAt        DateTime?
-  provider      String? // razorpay | stripe
-  providerSubId String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id                String       @id @default(cuid())
+  orgId             String       @unique
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  planId            String?
+  plan              Plan?        @relation(fields: [planId], references: [id])
+  status            String       @default("TRIAL") // TRIAL | ACTIVE | PAST_DUE | CANCELLED | EXPIRED
+  period            String       @default("MONTHLY") // MONTHLY | YEARLY
+  startsAt          DateTime     @default(now())
+  endsAt            DateTime?
+  cancelAtPeriodEnd Boolean      @default(false) // cancel at the next renewal, keep service until then
+  trialEndsAt       DateTime?
+  provider          String? // razorpay | stripe | cashfree | demo
+  providerSubId     String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   @@index([orgId])
 }
@@ -583,11 +588,34 @@ model Payment {
   subscriptionId    String?
   amount            Int // paise
   currency          String       @default("INR")
-  status            String       @default("PENDING") // PENDING | SUCCEEDED | FAILED | REFUNDED
+  // PENDING | SUCCEEDED | FAILED | PARTIALLY_REFUNDED | REFUNDED
+  status            String       @default("PENDING")
   provider          String?
-  providerPaymentId String?
+  providerOrderId   String? // provider checkout/order id (for matching webhooks)
+  providerPaymentId String? // provider payment/charge id
+  refundedAmount    Int          @default(0) // paise
+  paidAt            DateTime?
   createdAt         DateTime     @default(now())
 
+  @@index([orgId])
+  @@index([provider, providerOrderId])
+}
+
+// Inbound payment-provider webhooks. The unique (provider, eventId) is the
+// idempotency key — the same provider event is never processed twice.
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String // razorpay | stripe | cashfree | demo
+  eventId     String
+  type        String // payment.captured | checkout.session.completed | …
+  orgId       String?
+  status      String   @default("RECEIVED") // RECEIVED | PROCESSED | FAILED
+  payload     Json?
+  error       String?
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([provider, eventId])
   @@index([orgId])
 }
 

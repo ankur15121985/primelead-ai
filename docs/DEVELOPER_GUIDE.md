@@ -200,8 +200,13 @@ npm run db:seed             # reset demo data (idempotent)
 ### Reports
 - `routes/reports.routes.ts` — org-scoped aggregations, `fillDays` zero-fills the trend, date range clamped to **366 days**.
 
-### Billing
-- `routes/billing.routes.ts` — provider-agnostic. Demo mode applies instantly with a `PENDING` Payment row; with `RAZORPAY_KEY_ID`/`STRIPE_SECRET_KEY` it prepares a subscription and returns `mode: 'provider'`. Amounts are paise throughout.
+### Payments & subscriptions (Phase 2)
+- **Abstraction:** `server/src/payments/provider.ts` defines `PaymentProvider` (`createCheckout`, `verifyAndParse`) + the factory. Adapters: `razorpay.ts`, `stripe.ts`, `cashfree.ts`, `demo.ts`. Business code never talks to a gateway directly.
+- **Webhooks:** `routes/payment-webhooks.routes.ts` is mounted with `express.raw()` **before** `express.json()` so the raw body is available for HMAC verification. Signature schemes: Razorpay `x-razorpay-signature` (HMAC-SHA256 of raw body), Stripe `stripe-signature` (`t=<ts>,v1=<sig>` with 5-min tolerance), Cashfree `x-webhook-signature`, demo `x-webhook-secret`.
+- **Idempotency:** every event is recorded in `WebhookEvent` with a unique `(provider, eventId)`; replays are acknowledged (`{ duplicate: true }`) and never reprocessed.
+- **State machine** (`services/billing.ts`): only a verified `PAYMENT_CAPTURED` webhook settles a payment and activates the subscription (`TRIAL → ACTIVE`; failed payments → `FAILED` + `PAST_DUE`; refunds → `PARTIALLY_REFUNDED`/`REFUNDED`; cancel at period end → `cancelAtPeriodEnd`). An **amount mismatch** throws → provider retries, nothing is settled.
+- **Demo mode:** with no gateway keys the demo adapter simulates the whole flow — `POST /billing/demo/complete` fires a signed webhook through the exact same pipeline, so dev/tests exercise the real path without pretending a gateway exists. Live checkout creation is **IMPLEMENTATION REQUIRED** until exercised with keys.
+- **Usage limits** (`services/limits.ts`): caps live in the `Plan` table (`userLimit`/`leadLimit`, 0 = unlimited); enforced in `createLead` (all entry points) and team invites; a stale trial/cancelled period lazily drops the org back to STARTER.
 
 ### Roles & teams (Phase 1)
 - `services/rbac.ts` + `constants/rbac.ts` — `seedOrgRoles` creates the 7 system roles on signup; `rolePermissions(orgId, key)` resolves a user's effective permission set (custom roles read from the `Role` table). `requirePermission` blocks without the right permission.
@@ -219,7 +224,7 @@ npm run db:seed             # reset demo data (idempotent)
 npm test
 ```
 
-Current coverage (71 tests): GST math (in paise), lead scoring, signup/login, duplicate detection, auto-assignment (least-loaded + round-robin), pipeline moves + activity logging, follow-ups, CSV export, QR capture, **super-admin access control** (listed users allowed, others 403, org suspend/reactivate), CSRF enforcement, cross-org isolation, **plus Phase 1**: request-ids in errors, session revocation & device management, account lock-out, login history, MFA enable/challenge/TOTP/recovery/disable, change-password (revokes other sessions), RBAC role seeding + custom-role enforcement, team CRUD + cross-org team rejection, and paise money boundaries.
+Current coverage (80 tests): GST math (in paise), lead scoring, signup/login, duplicate detection, auto-assignment (least-loaded + round-robin), pipeline moves + activity logging, follow-ups, CSV export, QR capture, **super-admin access control** (listed users allowed, others 403, org suspend/reactivate), CSRF enforcement, cross-org isolation, **Phase 1**: request-ids, sessions/MFA/lockout/login-history, RBAC + custom roles, teams, paise boundaries; **Phase 2**: webhook signature rejection, demo upgrade → signed-webhook activation, webhook idempotency (double-delivery ack), failed-payment → PAST_DUE, refunds, amount-mismatch rejection, payment tenant isolation, and Plan-table usage-limit enforcement (leads + users).
 
 **How tests isolate the DB:** `api.test.ts` points `DATABASE_URL` at a throwaway SQLite file, `prisma db push`es the schema, and imports the app dynamically. It also sets `SUPER_ADMIN_EMAILS` so the test owner is the admin.
 

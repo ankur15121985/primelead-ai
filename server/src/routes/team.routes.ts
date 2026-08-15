@@ -12,6 +12,7 @@ import { publicUser } from '../lib/serializers';
 import { teamInviteSchema, teamUpdateSchema } from '../validators/schemas';
 import { canManage } from '../constants';
 import { orgRoles } from '../services/rbac';
+import { assertWithinLimit } from '../services/limits';
 
 const router = Router();
 
@@ -46,6 +47,8 @@ router.post(
     const email = input.email.toLowerCase();
     const exists = await prisma.user.findUnique({ where: { orgId_email: { orgId: user.orgId, email } } });
     if (exists) throw conflict('A team member with this email already exists.');
+    // Plan-driven user cap (0 = unlimited).
+    await assertWithinLimit(user.orgId, 'users');
 
     const password = input.password || randomToken(10);
     const member = await prisma.user.create({

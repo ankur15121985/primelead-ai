@@ -42,7 +42,9 @@ This is an **original product** (demo brand "PRIMELEAD AI") inspired by the *cat
 | **Invoices** — GST + HSN/SAC, payment tracking (partial → paid/overdue), PDF download, payment history | ✅ |
 | **Integrations & webhooks** — connect WhatsApp/Facebook/IndiaMART/Shopify/Zapier/API, unique webhook secret + URL, secret-verified inbound lead pipeline | ✅ |
 | **Reports** — date-range analytics: source/owner/status, daily trend, conversion & win rates, revenue, CSV export | ✅ |
-| **Billing** — plans + monthly/yearly toggle, subscription, payment history, provider-agnostic (Razorpay/Stripe ready) | ✅ |
+| **Billing & subscriptions** — config-driven plans with usage limits, monthly/yearly, trial → active → past-due lifecycle, cancel-at-period-end, provider-agnostic (Razorpay/Stripe/Cashfree adapters + demo) | ✅ |
+| **Payments** — hosted checkout creation, HMAC webhook signature verification (Razorpay/Stripe/Cashfree schemes), idempotent event processing, refunds, amount-mismatch rejection; a payment is only ever settled by a verified server-side webhook | ✅ |
+| **Usage limits** — Plan-table-driven caps (users/leads, 0 = unlimited) enforced at the service layer across manual, QR, webhook and invite entry points | ✅ |
 | **Contacts** — customer directory with search, tags, lead links | ✅ |
 | **Super-admin console** (`/admin`) — platform overview, all organizations, user management, suspend/activate + plan changes, system diagnostics + live error feed (gated by `SUPER_ADMIN_EMAILS`) | ✅ |
 | Automated tests (**71 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, **plus MFA, sessions, account lock, RBAC, teams, request-ids, paise money** | ✅ |
@@ -287,10 +289,13 @@ POST   /api/webhooks/:source         public — inbound lead (x-webhook-secret h
 GET    /api/reports?from=&to=        aggregated analytics
 GET    /api/reports/export           CSV download
 
-# Billing
-GET    /api/billing                  plan, subscription, payments, gateway status
-POST   /api/billing/upgrade          admin+ — switch plan (demo or provider mode)
-POST   /api/billing/cancel           admin+ — cancel subscription
+# Billing & payments
+GET    /api/billing                  plan, subscription, payments, limits, gateway status
+POST   /api/billing/upgrade          admin+ — switch plan (demo apply or provider checkout)
+GET    /api/billing/payments/:id     poll a checkout payment's status
+POST   /api/billing/demo/complete    admin+ — demo: fire a SIGNED simulated webhook
+POST   /api/billing/cancel           admin+ — cancel (immediate or { atPeriodEnd: true })
+POST   /api/webhooks/payments/:provider  provider webhook (raw body, HMAC signature, idempotent)
 
 # Contacts
 GET    /api/contacts?search=         directory
@@ -313,7 +318,7 @@ POST   /api/settings/ai              save AI key (server-side only)
 POST   /api/ai/follow-up             AI follow-up writer
 ```
 
-**SALES scoping in quotations/invoices:** salespeople only see documents linked to leads they own (manager+ see everything). **Webhooks** authenticate with the per-source secret header and are rate-limited (120 / 10 min).
+**SALES scoping in quotations/invoices:** salespeople only see documents linked to leads they own (manager+ see everything). **Lead webhooks** authenticate with the per-source secret header and are rate-limited (120 / 10 min). **Payment webhooks** are mounted raw-body and verify the provider's HMAC signature; every event is recorded with a unique `(provider, eventId)` idempotency key so replays are acknowledged and never double-processed. A payment becomes SUCCEEDED **only** through a verified webhook — never from the frontend.
 
 **Admin panel:** add emails to `SUPER_ADMIN_EMAILS` in `server/.env`, log in with one of them, then open **Avatar → Admin panel** (or `/admin`). See `docs/DEVELOPER_GUIDE.md` §3.
 
@@ -324,6 +329,21 @@ POST   /api/ai/follow-up             AI follow-up writer
 **Money:** the API accepts and returns **rupees** (the UI/JSON boundary), but the database stores **integer paise** — never floating-point money. GST, discounts and totals are computed in paise server-side (`server/src/services/gst.ts`, `server/src/lib/money.ts`).
 
 ---
+
+## 💳 Payments setup
+
+Without gateway keys the app runs in **demo mode**: upgrades apply instantly and a clearly-labeled **Simulate payment** button fires a *signed* webhook through the exact same verification + idempotency path the real providers use — so the full state machine is exercised without a gateway.
+
+```env
+# Pick ONE provider (auto-detected from its keys):
+RAZORPAY_KEY_ID=rzp_...          RAZORPAY_KEY_SECRET=...
+STRIPE_SECRET_KEY=sk_...          STRIPE_WEBHOOK_SECRET=whsec_...
+CASHFREE_APP_ID=...               CASHFREE_SECRET_KEY=...  CASHFREE_WEBHOOK_SECRET=...
+# Shared secret for the demo provider's simulated webhooks:
+PAYMENT_WEBHOOK_SECRET=change-me
+```
+
+Point the provider's webhook dashboard at `POST https://your-host/api/webhooks/payments/{provider}` (raw body). Live provider calls (checkout creation) are **IMPLEMENTATION REQUIRED** until exercised against the real APIs with keys — the adapters implement the documented REST APIs and HMAC schemes, and signature verification is fully covered by tests.
 
 ## 🧠 AI setup
 
@@ -361,10 +381,10 @@ Covers: GST calculations (CGST/SGST/IGST, discounts, rounding, in paise), lead s
 
 ## 🗺 Roadmap (next)
 
-1. **Live payment providers** — add Razorpay/Stripe keys; billing already records sessions + payments provider-agnostically
+1. **Live payment providers** — add Razorpay/Stripe/Cashfree keys; adapters + webhook verification are in place, live checkout creation needs exercising against real APIs
 2. **Scheduled messaging** — WhatsApp/email send queue (architecture ready; gated by credentials)
-3. **Phase 11 — Security hardening** — deeper audit coverage, per-org rate-limit tuning
-4. **Phase 12 — Performance/SEO/accessibility** — route code-splitting, marketing SEO meta, WCAG pass
+3. **Phase 3 — WhatsApp + IndiaMART/Meta adapters** — provider abstractions with webhook ingestion
+4. **Phase 4 — Security hardening** — deeper audit coverage, per-org rate-limit tuning, AI credit budgets
 
 ---
 

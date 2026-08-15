@@ -17,6 +17,22 @@ export const config = {
   // MFA
   mfaIssuer: process.env.MFA_ISSUER || 'PRIMELEAD AI',
   mfaTokenTtlMinutes: Number(process.env.MFA_TOKEN_TTL_MINUTES || 10),
+  // Billing / subscriptions
+  trialDays: Number(process.env.TRIAL_DAYS || 14),
+  payments: {
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+    razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY || '',
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    cashfreeAppId: process.env.CASHFREE_APP_ID || '',
+    cashfreeSecretKey: process.env.CASHFREE_SECRET_KEY || '',
+    cashfreeEnv: process.env.CASHFREE_ENV || 'sandbox',
+    cashfreeWebhookSecret: process.env.CASHFREE_WEBHOOK_SECRET || '',
+    // Shared secret for the demo provider's simulated webhooks.
+    webhookSecret: process.env.PAYMENT_WEBHOOK_SECRET || 'dev-payment-webhook-secret',
+    successUrl: process.env.PAYMENT_SUCCESS_URL || `${process.env.APP_URL || 'http://localhost:5173'}/app/billing?status=success`,
+    cancelUrl: process.env.PAYMENT_CANCEL_URL || `${process.env.APP_URL || 'http://localhost:5173'}/app/billing?status=cancelled`,
+  },
   // Comma-separated emails allowed to access /api/admin (website handler / developer).
   superAdminEmails: (process.env.SUPER_ADMIN_EMAILS || '')
     .split(',')

@@ -108,6 +108,34 @@ Delete a team — members are unassigned (`teamId` → null), never removed. →
 
 ---
 
+## Billing & payments
+
+### `GET /billing` (authenticated)
+Subscription, plans (with `userLimit`/`leadLimit`, 0 = unlimited), payments, gateway state.
+→ `200 { data: { org, plans[], subscription, currentPlan, payments[], gateway: { configured, provider, mode: 'demo'|'provider' } } }`
+
+### `POST /billing/upgrade` (`billing.manage`)
+`{ "planSlug", "period": "MONTHLY"|"YEARLY" }`
+
+- **Demo mode** (no gateway keys): applies immediately, returns `{ applied: true, mode: 'demo', plan, amount, paymentId }`. Paid plans start a trial; settle the demo payment with `POST /billing/demo/complete`.
+- **Provider mode**: creates a hosted checkout, returns `{ applied: false, mode: 'provider', provider, plan, amount, checkoutUrl, paymentId }`. The plan **only** activates when a verified webhook arrives.
+
+### `GET /billing/payments/:id` (authenticated)
+Poll a checkout payment → `{ payment: { id, status, amount, provider, paidAt, refundedAmount } }`. Status is `PENDING | SUCCEEDED | FAILED | PARTIALLY_REFUNDED | REFUNDED`.
+
+### `POST /billing/demo/complete` (`billing.manage`)
+Demo-only. `{ "paymentId", "kind"?: "PAYMENT_CAPTURED"|"PAYMENT_FAILED"|"REFUND_PROCESSED" }` — fires a **signed** simulated webhook through the same pipeline real providers use.
+
+### `POST /billing/cancel` (`billing.manage`)
+`{ "atPeriodEnd"?: boolean }` — `true` keeps service until `endsAt` (sets `cancelAtPeriodEnd`); `false`/omitted cancels immediately. → `200 { data: { cancelled, atPeriodEnd } }`
+
+### `POST /webhooks/payments/:provider` (public, raw body)
+Provider → `razorpay | stripe | cashfree | demo`. Requires the provider's signature header (`x-razorpay-signature`, `stripe-signature`, `x-webhook-signature`, or `x-webhook-secret` for demo). Verifies the HMAC against the raw body, then processes the event **idempotently** (unique `(provider, eventId)` — replays are acknowledged with `{ duplicate: true }`).
+
+Events handled: payment captured (only way a payment becomes `SUCCEEDED`), payment failed (→ `PAST_DUE`), refund processed (→ `PARTIALLY_REFUNDED`/`REFUNDED`), subscription cancelled. An amount mismatch between the webhook and the recorded Payment causes a non-2xx so the provider retries — the payment is never settled.
+
+---
+
 ## Leads
 
 ### `GET /leads`

@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { CreditCard, Check, Zap, Calendar, BadgeCheck } from 'lucide-react';
-import { useBilling, useUpgradePlan, useCancelSubscription } from '@/hooks/queries';
+import { useEffect, useState } from 'react';
+import { CreditCard, Check, Zap, Calendar, BadgeCheck, ExternalLink, FlaskConical, Users, UserRound } from 'lucide-react';
+import { useBilling, useUpgradePlan, useCancelSubscription, useCheckPayment, useCompleteDemoPayment } from '@/hooks/queries';
 import { useToast } from '@/hooks/use-toast';
 import { friendlyError } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/ui/page-header';
@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { inr } from './Quotations';
+import type { Plan } from '@/types';
 
 export function Billing() {
   const { data, isLoading } = useBilling();
@@ -18,28 +19,63 @@ export function Billing() {
   const { success, error } = useToast();
   const [period, setPeriod] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
 
+  // Provider checkout flow state
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
+  const pending = useCheckPayment(pendingPaymentId);
+  const simulate = useCompleteDemoPayment();
+
   const plan = data?.currentPlan;
   const subscription = data?.subscription;
+  const isDemo = data?.gateway.mode === 'demo';
 
-  const changePlan = async (slug: string) => {
-    if (slug === plan?.slug) return;
+  // When a provider checkout payment settles, refresh billing and clear the flow.
+  useEffect(() => {
+    if (pendingPaymentId && pending.data?.payment.status === 'SUCCEEDED') {
+      success('Payment received', 'Your new plan is now active.');
+      setPendingPaymentId(null);
+    }
+  }, [pending.data?.payment.status, pendingPaymentId, success]);
+
+  const changePlan = async (p: Plan) => {
+    if (p.slug === plan?.slug) return;
     try {
-      const res = await upgrade.mutateAsync({ planSlug: slug, period });
+      const res = await upgrade.mutateAsync({ planSlug: p.slug, period });
       if (res.applied) {
-        success('Plan updated', `You are now on the ${res.plan} plan (${res.mode === 'demo' ? 'demo mode — no payment taken' : 'provider checkout sent'}).`);
+        if (res.mode === 'demo' && res.paymentId) {
+          setPendingPaymentId(null); // demo payments settle via the simulate button below
+          success('Trial started', `You're now on the ${res.plan} plan. Simulate the payment below to activate it.`);
+        } else {
+          success('Plan updated', `You are now on the ${res.plan} plan.`);
+        }
       } else {
-        success('Checkout prepared', 'Complete payment to activate your new plan.');
+        // Provider mode — open the hosted checkout and poll for settlement.
+        setPendingPaymentId(res.paymentId || null);
+        if (res.checkoutUrl) {
+          window.open(res.checkoutUrl, '_blank', 'noopener');
+        } else {
+          success('Checkout prepared', 'Complete the payment on the payment page to activate your plan.');
+        }
       }
     } catch (err) {
       error('Could not update plan', friendlyError(err));
     }
   };
 
-  const handleCancel = async () => {
-    if (!window.confirm('Cancel your subscription? You can restart anytime.')) return;
+  const simulateDemoPayment = async (paymentId: string) => {
     try {
-      await cancel.mutateAsync();
-      success('Subscription cancelled');
+      await simulate.mutateAsync({ paymentId });
+      success('Payment simulated', 'The webhook was verified and the subscription is now active.');
+    } catch (err) {
+      error('Could not simulate payment', friendlyError(err));
+    }
+  };
+
+  const handleCancel = async () => {
+    const atPeriodEnd = window.confirm('Cancel at the end of the billing period? You keep access until then.\n\nClick "OK" to cancel at period end, or "Cancel" to not cancel.');
+    if (!atPeriodEnd) return;
+    try {
+      await cancel.mutateAsync({ atPeriodEnd: true });
+      success('Subscription cancelled', 'You keep access until the end of the billing period.');
     } catch (err) {
       error('Could not cancel', friendlyError(err));
     }
@@ -48,11 +84,21 @@ export function Billing() {
   if (isLoading) return <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28" />)}</div>;
   if (!data) return <p className="text-sm text-muted-foreground">Billing is unavailable right now.</p>;
 
+  const statusBadge = () => {
+    if (!subscription) return <Badge tone="default">No subscription</Badge>;
+    if (subscription.status === 'CANCELLED' || (subscription.cancelAtPeriodEnd && subscription.status !== 'PAST_DUE')) {
+      return <Badge tone="danger">Cancelling</Badge>;
+    }
+    if (subscription.status === 'PAST_DUE') return <Badge tone="danger">Payment overdue</Badge>;
+    if (subscription.status === 'TRIAL') return <Badge tone="warning">Trial</Badge>;
+    return <Badge tone="success"><BadgeCheck className="h-3 w-3" /> Active</Badge>;
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Billing & plan"
-        description="Manage your PRIMELEAD subscription. In demo mode plan changes apply instantly without payment."
+        description={isDemo ? 'Demo mode — plan changes are simulated with a signed webhook, no real payment is taken.' : 'Manage your PRIMELEAD subscription. Payments are verified server-side via webhooks.'}
       />
 
       {/* Current subscription */}
@@ -62,23 +108,51 @@ export function Billing() {
           <div>
             <p className="text-lg font-bold">{plan?.name || data.org.plan} plan</p>
             <p className="text-xs text-muted-foreground">
-              {subscription?.status === 'TRIAL' ? 'Trial' : subscription?.status || 'Active'}
-              {subscription?.period === 'YEARLY' ? ' · billed yearly' : ' · billed monthly'}
+              {subscription?.period === 'YEARLY' ? 'Billed yearly' : 'Billed monthly'}
               {data.gateway.configured ? ` · ${data.gateway.provider}` : ' · demo mode'}
+              {subscription?.trialEndsAt && subscription.status === 'TRIAL' && ` · trial ends ${new Date(subscription.trialEndsAt).toLocaleDateString('en-IN')}`}
+              {subscription?.cancelAtPeriodEnd && subscription.endsAt && ` · cancels ${new Date(subscription.endsAt).toLocaleDateString('en-IN')}`}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {subscription?.status === 'CANCELLED' ? (
-            <Badge tone="danger">Cancelled</Badge>
-          ) : subscription?.status === 'TRIAL' ? (
-            <Badge tone="warning">Trial</Badge>
-          ) : (
-            <Badge tone="success"><BadgeCheck className="h-3 w-3" /> Active</Badge>
+          {statusBadge()}
+          {subscription && !subscription.cancelAtPeriodEnd && (
+            <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
           )}
-          <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
         </div>
       </Card>
+
+      {/* Pending demo payment — simulate the webhook */}
+      {data.payments.some((p) => p.status === 'PENDING' && p.provider === 'DEMO') && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 border-dashed p-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-500/10 text-violet-600"><FlaskConical className="h-4 w-4" /></span>
+            <div>
+              <p className="text-sm font-semibold">Trial payment pending (demo)</p>
+              <p className="text-xs text-muted-foreground">In production a verified Razorpay/Stripe/Cashfree webhook would settle this automatically.</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            loading={simulate.isPending}
+            onClick={() => simulateDemoPayment(data.payments.find((p) => p.status === 'PENDING' && p.provider === 'DEMO')!.id)}
+          >
+            <FlaskConical className="h-3.5 w-3.5" /> Simulate payment
+          </Button>
+        </Card>
+      )}
+
+      {/* Provider checkout in progress */}
+      {pendingPaymentId && pending.data?.payment.status === 'PENDING' && (
+        <Card className="flex items-center justify-between gap-3 border-primary/30 bg-primary/5 p-4">
+          <div>
+            <p className="text-sm font-semibold">Waiting for payment…</p>
+            <p className="text-xs text-muted-foreground">Complete the checkout, then this page updates automatically once the provider webhook is verified.</p>
+          </div>
+          <Button size="sm" variant="outline" disabled>Checking…</Button>
+        </Card>
+      )}
 
       {/* Plan toggle */}
       <div className="flex items-center justify-center gap-2">
@@ -103,6 +177,10 @@ export function Billing() {
                 {price === 0 ? 'Free' : `₹${price.toLocaleString('en-IN')}`}
                 <span className="text-sm font-normal text-muted-foreground">/{period === 'YEARLY' ? 'year' : 'month'}</span>
               </p>
+              <div className="mt-3 flex gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {p.userLimit === 0 ? 'Unlimited' : p.userLimit} users</span>
+                <span className="flex items-center gap-1"><UserRound className="h-3.5 w-3.5" /> {p.leadLimit === 0 ? 'Unlimited' : p.leadLimit.toLocaleString('en-IN')} leads</span>
+              </div>
               <ul className="mt-4 flex-1 space-y-2">
                 {(p.features || []).map((f) => (
                   <li key={f} className="flex items-start gap-2 text-sm">
@@ -116,7 +194,7 @@ export function Billing() {
                 variant={isCurrent ? 'outline' : 'primary'}
                 disabled={isCurrent}
                 loading={upgrade.isPending && upgrade.variables?.planSlug === p.slug}
-                onClick={() => changePlan(p.slug)}
+                onClick={() => changePlan(p)}
               >
                 <Zap className="h-4 w-4" /> {isCurrent ? 'Current plan' : `Switch to ${p.name}`}
               </Button>
@@ -128,7 +206,7 @@ export function Billing() {
       {/* Payment history */}
       <Card className="p-5">
         <p className="mb-1 font-semibold">Payment history</p>
-        <p className="mb-3 text-xs text-muted-foreground">All payments recorded against this organization.</p>
+        <p className="mb-3 text-xs text-muted-foreground">Settlements are recorded only from verified provider webhooks.</p>
         {data.payments.length === 0 ? (
           <p className="text-sm text-muted-foreground">No payments yet.</p>
         ) : (
@@ -137,18 +215,30 @@ export function Billing() {
               <div key={p.id} className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2.5 text-sm">
                 <span className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  {new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {p.paidAt ? new Date(p.paidAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(p.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                   <span className="text-xs text-muted-foreground capitalize">· {p.provider || 'manual'}</span>
+                  {p.refundedAmount > 0 && <span className="text-xs text-muted-foreground">· refunded {inr(p.refundedAmount)}</span>}
                 </span>
                 <span className="flex items-center gap-2">
                   <span className="font-semibold">{inr(p.amount)}</span>
-                  <Badge tone={p.status === 'SUCCEEDED' ? 'success' : p.status === 'PENDING' ? 'warning' : 'danger'}>{p.status}</Badge>
+                  <Badge tone={p.status === 'SUCCEEDED' ? 'success' : p.status === 'PENDING' ? 'warning' : p.status === 'FAILED' ? 'danger' : 'muted'}>{p.status.replace('_', ' ')}</Badge>
+                  {p.status === 'PENDING' && p.provider === 'DEMO' && (
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => simulateDemoPayment(p.id)} loading={simulate.isPending}>
+                      Simulate
+                    </Button>
+                  )}
                 </span>
               </div>
             ))}
           </div>
         )}
       </Card>
+
+      {!isDemo && (
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <ExternalLink className="h-3.5 w-3.5" /> Upgrades open a hosted checkout; your plan activates only after our server verifies the {data.gateway.provider} webhook.
+        </p>
+      )}
     </div>
   );
 }

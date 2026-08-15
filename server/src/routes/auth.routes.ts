@@ -17,6 +17,7 @@ import { audit } from '../lib/audit';
 import { publicOrg, publicUser } from '../lib/serializers';
 import { ensureOrgBasics, addSampleData } from '../services/onboarding';
 import { seedOrgRoles } from '../services/rbac';
+import { assertWithinLimit } from '../services/limits';
 import { config } from '../config';
 import {
   signupSchema,
@@ -620,6 +621,7 @@ router.post(
       for (const email of input.inviteEmails) {
         const exists = await prisma.user.findUnique({ where: { orgId_email: { orgId: user.orgId, email } } });
         if (!exists) {
+          await assertWithinLimit(user.orgId, 'users');
           const member = await prisma.user.create({
             data: {
               orgId: user.orgId,

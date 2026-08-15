@@ -432,6 +432,8 @@ export interface Plan {
   priceMonthly: number;
   priceYearly: number;
   features: string[];
+  userLimit: number;
+  leadLimit: number;
 }
 
 export interface BillingData {
@@ -443,12 +445,33 @@ export interface BillingData {
     period: string;
     startsAt: string;
     endsAt: string | null;
+    trialEndsAt: string | null;
+    cancelAtPeriodEnd: boolean;
     provider: string | null;
     plan: Plan | null;
   } | null;
   currentPlan: Plan | null;
-  payments: Array<{ id: string; amount: number; currency: string; status: string; provider: string | null; createdAt: string }>;
-  gateway: { configured: boolean; provider: string | null };
+  payments: Array<{
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    provider: string | null;
+    refundedAmount: number;
+    paidAt: string | null;
+    createdAt: string;
+  }>;
+  gateway: { configured: boolean; provider: string | null; mode: 'demo' | 'provider' };
+}
+
+export interface UpgradeResult {
+  applied: boolean;
+  mode: string;
+  provider?: string;
+  plan: string;
+  amount: number;
+  checkoutUrl?: string | null;
+  paymentId?: string;
 }
 
 export interface Contact {

@@ -54,9 +54,12 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   // eslint-disable-next-line no-console
   console.error('[error]', req.method, req.originalUrl, err);
   const status = anyErr?.status && anyErr.status >= 400 && anyErr.status < 500 ? anyErr.status : 500;
+  // Preserve explicit error codes (e.g. LIMIT_EXCEEDED, CHECKOUT_FAILED) so the
+  // UI can act on them; fall back to stable generic codes otherwise.
+  const code = status === 500 ? 'INTERNAL' : /^[A-Z][A-Z_]+$/.test(anyErr?.code || '') ? (anyErr.code as string) : 'ERROR';
   return res.status(status).json({
     error: {
-      code: status === 500 ? 'INTERNAL' : 'ERROR',
+      code,
       message: status === 500 ? 'Something went wrong on our side. Please try again.' : anyErr?.message || 'Something went wrong.',
       requestId,
     },

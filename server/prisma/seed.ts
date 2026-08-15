@@ -23,6 +23,8 @@ async function seedPlans() {
       name: 'Starter',
       priceMonthly: 0,
       priceYearly: 0,
+      userLimit: 2,
+      leadLimit: 1000,
       features: [
         'Up to 2 users',
         '1,000 leads',
@@ -36,6 +38,8 @@ async function seedPlans() {
       name: 'Growth',
       priceMonthly: 149900, // paise (₹1,499)
       priceYearly: 1499000, // paise (₹14,990)
+      userLimit: 10,
+      leadLimit: 25000,
       features: [
         'Up to 10 users',
         '25,000 leads',
@@ -52,6 +56,8 @@ async function seedPlans() {
       name: 'Business',
       priceMonthly: 399900, // paise (₹3,999)
       priceYearly: 3999000, // paise (₹39,990)
+      userLimit: 0, // unlimited
+      leadLimit: 0, // unlimited
       features: [
         'Unlimited users',
         'Unlimited leads',

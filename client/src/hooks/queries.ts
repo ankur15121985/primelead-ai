@@ -4,7 +4,7 @@ import type {
   AdminOrg, AdminOrgDetail, AdminOverview, AdminSystem, AiConversation, AiConversationDetail,
   BillingData, Contact, DashboardData, Integration, IntegrationCatalogItem, Invoice, Lead, LeadDetail,
   LeadListResponse, Notification, PipelineStage, PublicQrMeta, QrCode, QrDetail, Quotation,
-  ReportData, Task, User,
+  ReportData, Task, UpgradeResult, User,
 } from '@/types';
 
 /** All TanStack Query hooks for the app. */
@@ -594,7 +594,7 @@ export function useBilling() {
 export function useUpgradePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { planSlug: string; period: string }) => api<{ applied: boolean; mode: string; plan: string }>('/billing/upgrade', { body: input }),
+    mutationFn: (input: { planSlug: string; period: string }) => api<UpgradeResult>('/billing/upgrade', { body: input }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['billing'] });
       qc.invalidateQueries({ queryKey: ['auth'] });
@@ -605,8 +605,29 @@ export function useUpgradePlan() {
 export function useCancelSubscription() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api('/billing/cancel', { body: {} }),
+    mutationFn: (input?: { atPeriodEnd?: boolean }) => api('/billing/cancel', { body: input || {} }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['billing'] }),
+  });
+}
+
+/** Poll a provider checkout payment until it settles (webhook-driven). */
+export function useCheckPayment(paymentId: string | null) {
+  return useQuery({
+    queryKey: ['payment', paymentId],
+    queryFn: () => api<{ payment: { id: string; status: string; paidAt: string | null } }>(`/billing/payments/${paymentId}`),
+    enabled: Boolean(paymentId),
+    refetchInterval: (q) => (q.state.data?.payment.status === 'PENDING' ? 3000 : false),
+  });
+}
+
+export function useCompleteDemoPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { paymentId: string; kind?: string }) => api('/billing/demo/complete', { body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['billing'] });
+      qc.invalidateQueries({ queryKey: ['auth'] });
+    },
   });
 }
 
