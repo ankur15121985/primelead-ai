@@ -13,7 +13,8 @@
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "vitest run"
+    "backup": "tsx scripts/backup-db.ts",
+    "test": "vitest run --pool=threads --no-file-parallelism"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

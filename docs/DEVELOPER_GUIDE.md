@@ -241,6 +241,11 @@ npm run db:seed             # reset demo data (idempotent)
 - **Tenant resolution:** Meta webhooks are unauthenticated, so the org is resolved from the payload's `phone_number_id` (scanned across org settings). GET hub verification matches the org's configured `verifyToken` with `safeEqual`. Provider tokens are **write-only** — `getWhatsAppConfig` returns `hasToken`, never the token; an empty `token` on PATCH keeps the existing one.
 - **Inbox UI:** `client/src/pages/app/Inbox.tsx` — two-pane list/thread, status tabs, mine-only filter, search by name/number, template sends with `{{n}}` param inputs, assign/close, demo simulator dialog, provider settings dialog.
 
+### Social lead connectors (Phase 16)
+- **Adapters:** `integrations/leadsource/twitter.ts` (X Account Activity DM payload → lead, handle in `customFields.twitterHandle`, DM event id = replay key) and `integrations/leadsource/generic-social.ts` (LinkedIn/Telegram/Hike/Snapchat — documented `{ name, handle?, phone?, email?, company?, message?, externalId? }` contract). Both set `allowsMessageOnly: true` so a name + message is a valid lead (DM-first platforms); IndiaMART/Meta stay strict on phone/email.
+- **Registry:** `getLeadSourceAdapter(source)` in `integrations/leadsource.ts` maps the new sources; the Integrations catalog (`routes/integrations.routes.ts`) lists them so they're connectable. The client groups social sources into a **Social & messaging** section.
+- **Adding a platform:** add the source to `LEAD_SOURCES` (server + client constants), add a catalog entry, and either write an adapter or reuse `genericSocialAdapter` — no CRM-core changes.
+
 ### Lead-source adapters (Phase 7)
 - **Interface:** `integrations/leadsource.ts` defines `LeadSourceAdapter` (`receiveLead`, `validateLead`, `normalizeLead`, `deduplicateLead`, `createLead`) plus a registry (`getAdapter(source)`). Adapters: `indiamart.ts` (buyer-enquiry payload → normalized lead) and `meta-leads.ts` (Lead Ads payload with campaign/adset attribution).
 - **Webhook routing:** `routes/webhooks.routes.ts` resolves the adapter from the integration's `source` and runs payloads through the full pipeline; every attempt (success or failure, with reason) is recorded to `IntegrationLog` (immutable, org-scoped). Generic webhooks for sources without an adapter keep the old secret-verified path.
@@ -262,6 +267,11 @@ npm run db:seed             # reset demo data (idempotent)
 - **Compression:** `app.use(compression())` in `app.ts` (after `requestId`) gzips all JSON API responses over the 1 KB threshold — verify with `curl -H 'Accept-Encoding: gzip'`. The dependency (`compression` + `@types/compression`) is hoisted to the workspace root.
 - **Dashboard:** `routes/dashboard.routes.ts` issues the trend (14 days × 2 counts), funnel, top-salespeople, recent lists and follow-ups as **one parallel `Promise.all`** — never add a serial `await` to that handler; add the query to the batch instead.
 - **Client code splitting:** `App.tsx` lazy-loads every page via the `lazyPage()` helper (`Suspense` + skeleton fallback wraps `<Routes>`). Layouts stay eager (the app shell). When adding a page: add a `lazyPage` import, keep the named export, and the build will emit its own chunk.
+
+### PWA & ops (Phase 16)
+- **Service worker:** `client/public/sw.js` (copied to dist by Vite) — precaches the app shell, network-first for navigations with offline fallback, stale-while-revalidate for assets, **never caches `/api`**. Registered only in production builds (`import.meta.env.PROD` guard in `main.tsx`) so Vite dev hot-reload is untouched. No push notifications yet (needs VAPID + server Web Push).
+- **Backups:** `npm run backup -w server` runs `scripts/backup-db.ts` — an online `VACUUM INTO` snapshot through the app's own Prisma client (no downtime, no extra deps) into `server/data/backups/`. `scripts/` sits outside the tsc build, so in the container use `npx tsx scripts/backup-db.ts <dest>`.
+- **Browser E2E:** `client/e2e/funnel.spec.ts` + `client/playwright.config.ts` — Playwright boots the **production build** (webServer: `prisma migrate deploy && node dist/index.js` against a scratch `e2e.db`) and walks signup → create lead → schedule follow-up. Run: `npm run build && npm run test:e2e -w client`.
 
 ### Production build & deployment (Phase 16)
 - **Build layout:** `server/tsconfig.json` uses `rootDir: src` → compiled output is `server/dist/index.js` (entry: `npm run start:prod -w server`). `prisma/seed.ts` and `vitest.config.ts` run via tsx/vitest and are deliberately excluded from the production bundle.

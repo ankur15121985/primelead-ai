@@ -17,6 +17,14 @@ const queryClient = new QueryClient({
   },
 });
 
+// PWA offline shell — registered only in production builds so Vite dev's
+// hot reload is never cached. Push notifications are a future addition.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>

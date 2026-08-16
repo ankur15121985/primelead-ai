@@ -319,7 +319,7 @@ The assistant reads live, org-scoped data only (SALES users see their own leads)
 
 ### `GET /integrations` → `200 { data: { catalog, connections } }`
 
-Catalog: WhatsApp, Facebook, Instagram, Google Ads, IndiaMART, JustDial, TradeIndia, Shopify, Zapier, REST API. `connections` show enabled/status/webhook URL (never the secret).
+Catalog: WhatsApp, Facebook, Instagram, **Twitter/X, LinkedIn, Telegram, Hike, Snapchat**, Google Ads, IndiaMART, JustDial, TradeIndia, Shopify, Zapier, REST API. `connections` show enabled/status/webhook URL (never the secret).
 
 ### `POST /integrations/:source/connect` (manager+) → `200 { data: { integration: { source, webhookUrl, webhookSecret } } }`
 
@@ -332,7 +332,18 @@ Creates/refreshes a unique secret. **The secret is returned exactly once** — s
 
 Headers: `x-webhook-secret: <secret>`. Body: name + optional phone/email/company/campaign/expectedValue/notes/priority/ownerId/customFields.
 
-Pipeline: verify secret (constant-time) → resolve tenant from the secret → validate → dedupe (409 on duplicate) → create lead (auto-assign; a client-supplied `ownerId` is only honoured when it belongs to this org) → activity + notification.
+Pipeline: verify secret (constant-time) → resolve tenant from the secret → adapter `validate` → `normalize` → dedupe (409 on duplicate) → create lead (auto-assign; a client-supplied `ownerId` is only honoured when it belongs to this org) → activity + notification.
+
+**Source adapters** (each has its own payload format, replay-guarded by the provider event id):
+
+| Source | Adapter | Payload |
+|---|---|---|
+| IndiaMART | buyer enquiry | `QUERY_ID`, `BUYER_NAME`, `MOBILE`, `EMAIL`, `COMPANY`, `PRODUCT`, `QUERY`, `CITY`, `STATE` |
+| Facebook / Instagram | Lead Ads | Meta `leadgen` webhook (`entry[].changes[].value` with `leadgen_id`, `field_data`) |
+| Twitter / X | DMs | X Account Activity `direct_message_events` + `users` map — sender profile name → lead, handle kept in `customFields.twitterHandle`, DM text → notes |
+| LinkedIn / Telegram / Hike / Snapchat | generic social | `{ name, handle?, phone?, email?, company?, message?, externalId? }` — the platform's bot/form POSTs this JSON |
+
+Social DM adapters accept a **name + message** as a lead (no phone/email needed — the salesperson follows up in-platform). Lead-form adapters (IndiaMART, Meta) stay strict on phone/email.
 
 ```bash
 curl -X POST https://your-app/api/webhooks/whatsapp \

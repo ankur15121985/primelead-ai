@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plug, Zap, Copy, Check, Power, Trash2, Webhook, KeyRound, ExternalLink, ShieldCheck, Activity, AlertTriangle } from 'lucide-react';
+import { Plug, Zap, Copy, Check, Power, Trash2, Webhook, KeyRound, ExternalLink, ShieldCheck, Activity, AlertTriangle, AtSign, Linkedin, Send, Ghost } from 'lucide-react';
 import { useIntegrations, useConnectIntegration, useUpdateIntegration, useDisconnectIntegration, useIntegrationLogs } from '@/hooks/queries';
 import { useToast } from '@/hooks/use-toast';
 import { friendlyError, useAuth } from '@/hooks/use-auth';
@@ -13,9 +13,13 @@ import type { Integration, IntegrationCatalogItem } from '@/types';
 import { timeAgo } from '@/lib/format';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  MessageCircle: Plug, Facebook: Plug, Instagram: Plug, Search: Plug, Store: Plug,
-  PhoneCall: Plug, Briefcase: Plug, ShoppingBag: Plug, Zap, Code2: Webhook,
+  MessageCircle: Plug, Facebook: Plug, Instagram: Plug, Twitter: AtSign, Linkedin,
+  Send, Ghost, Search: Plug, Store: Plug, PhoneCall: Plug, Briefcase: Plug,
+  ShoppingBag: Plug, Zap, Code2: Webhook,
 };
+
+/** Social & messaging platforms get their own section. */
+const SOCIAL_SOURCES = new Set(['WHATSAPP', 'FACEBOOK', 'INSTAGRAM', 'TWITTER', 'LINKEDIN', 'TELEGRAM', 'HIKE', 'SNAPCHAT']);
 
 export function Integrations() {
   const { data, isLoading } = useIntegrations();
@@ -72,6 +76,65 @@ export function Integrations() {
     }
   };
 
+  const renderCard = (item: IntegrationCatalogItem) => {
+    const Icon = ICONS[item.icon] || Plug;
+    const conn = connBySource.get(item.source);
+    return (
+      <Card key={item.source} className="flex flex-col p-5">
+        <div className="flex items-start justify-between">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Icon className="h-5 w-5" />
+          </span>
+          {conn ? (
+            conn.errorCount > 0 ? (
+              <Badge tone="warning">
+                <AlertTriangle className="h-3 w-3" /> Needs attention
+              </Badge>
+            ) : (
+              <Badge tone="success">Connected</Badge>
+            )
+          ) : (
+            <Badge tone="muted">Not connected</Badge>
+          )}
+        </div>
+        <h3 className="mt-3 font-semibold">{item.name}</h3>
+        <p className="mt-1 flex-1 text-xs text-muted-foreground">{item.description}</p>
+        <div className="mt-4 flex items-center gap-2">
+          {!conn ? (
+            isManager ? (
+              <Button size="sm" onClick={() => handleConnect(item)} loading={connect.isPending && connect.variables === item.source}>
+                <Plug className="h-3.5 w-3.5" /> Connect
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">Manager access required</span>
+            )
+          ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={() => toggle(item.source, conn.enabled)}>
+                <Power className="h-3.5 w-3.5" /> {conn.enabled ? 'Pause' : 'Resume'}
+              </Button>
+              {conn.webhookUrl && (
+                <Button size="sm" variant="ghost" onClick={() => setSecretFor({ source: item.source, webhookUrl: conn.webhookUrl!, webhookSecret: '', name: item.name })}>
+                  <KeyRound className="h-3.5 w-3.5" /> Details
+                </Button>
+              )}
+              {conn.status !== 'DISCONNECTED' && (
+                <Button size="sm" variant="ghost" onClick={() => setLogsFor(conn)}>
+                  <Activity className="h-3.5 w-3.5" /> Activity
+                </Button>
+              )}
+              {isManager && (
+                <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDisconnect(item.source, item.name)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -82,65 +145,24 @@ export function Integrations() {
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44" />)}</div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {catalog.map((item) => {
-            const Icon = ICONS[item.icon] || Plug;
-            const conn = connBySource.get(item.source);
-            return (
-              <Card key={item.source} className="flex flex-col p-5">
-                <div className="flex items-start justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  {conn ? (
-                    conn.errorCount > 0 ? (
-                      <Badge tone="warning">
-                        <AlertTriangle className="h-3 w-3" /> Needs attention
-                      </Badge>
-                    ) : (
-                      <Badge tone="success">Connected</Badge>
-                    )
-                  ) : (
-                    <Badge tone="muted">Not connected</Badge>
-                  )}
-                </div>
-                <h3 className="mt-3 font-semibold">{item.name}</h3>
-                <p className="mt-1 flex-1 text-xs text-muted-foreground">{item.description}</p>
-                <div className="mt-4 flex items-center gap-2">
-                  {!conn ? (
-                    isManager ? (
-                      <Button size="sm" onClick={() => handleConnect(item)} loading={connect.isPending && connect.variables === item.source}>
-                        <Plug className="h-3.5 w-3.5" /> Connect
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Manager access required</span>
-                    )
-                  ) : (
-                    <>
-                      <Button size="sm" variant="outline" onClick={() => toggle(item.source, conn.enabled)}>
-                        <Power className="h-3.5 w-3.5" /> {conn.enabled ? 'Pause' : 'Resume'}
-                      </Button>
-                      {conn.webhookUrl && (
-                        <Button size="sm" variant="ghost" onClick={() => setSecretFor({ source: item.source, webhookUrl: conn.webhookUrl!, webhookSecret: '', name: item.name })}>
-                          <KeyRound className="h-3.5 w-3.5" /> Details
-                        </Button>
-                      )}
-                      {conn.status !== 'DISCONNECTED' && (
-                        <Button size="sm" variant="ghost" onClick={() => setLogsFor(conn)}>
-                          <Activity className="h-3.5 w-3.5" /> Activity
-                        </Button>
-                      )}
-                      {isManager && (
-                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDisconnect(item.source, item.name)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+        <div className="space-y-8">
+          <section>
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Social & messaging</h2>
+            <p className="mb-3 text-xs text-muted-foreground">
+              Turn enquiries from Instagram, Facebook, WhatsApp, X, LinkedIn, Telegram, Hike and Snapchat into tracked leads. Connect a platform, copy its webhook URL + secret, and point the platform's bot or form at it.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {catalog.filter((c) => SOCIAL_SOURCES.has(c.source)).map(renderCard)}
+            </div>
+          </section>
+          <section>
+            <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Marketplaces & tools</h2>
+            <p className="mb-3 text-xs text-muted-foreground">IndiaMART, Google Ads, Shopify, Zapier and every other source.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {catalog.filter((c) => !SOCIAL_SOURCES.has(c.source)).map(renderCard)}
+            </div>
+          </section>
         </div>
       )}
 

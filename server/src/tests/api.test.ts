@@ -2936,3 +2936,101 @@ describe('Phase 14 · mass assignment & hardening headers', () => {
     expect(nf.body.error.code).toBeTruthy();
   });
 });
+// ────────────────────────────────────────────────────────────────────────
+// Phase 16 — Social lead connectors (X/Twitter + generic social webhooks)
+// and honest Meta-outbound failure messages.
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 16 · social lead connectors', () => {
+  it('turns an X (Twitter) DM event into a tracked lead with handle + message', async () => {
+    const { agent: a } = await signupFresh('X Owner', 'X Org');
+    const secret = await connectSource('TWITTER', a);
+
+    const res = await request(server)
+      .post('/api/webhooks/twitter')
+      .set('x-webhook-secret', secret)
+      .send({
+        direct_message_events: [
+          {
+            type: 'message_create',
+            id: '1234567890123456789',
+            message_create: {
+              sender_id: '987654321',
+              message_data: { text: 'Hi, need a website for my boutique' },
+            },
+          },
+        ],
+        users: {
+          '987654321': { id: '987654321', name: 'Meera Kapoor', screen_name: 'meera_k' },
+        },
+      });
+    expect(res.status).toBe(201);
+
+    const leads = await a.get('/api/leads?search=meera');
+    const lead = leads.body.data.rows[0];
+    expect(lead.source).toBe('TWITTER');
+    expect(lead.name).toBe('Meera Kapoor');
+    expect(lead.customFields.twitterHandle).toBe('meera_k');
+    expect(lead.customFields.twitterUserId).toBe('987654321');
+    expect(lead.notes).toContain('boutique');
+
+    // Replay with the same DM id → acknowledged as duplicate, no new lead.
+    const replay = await request(server)
+      .post('/api/webhooks/twitter')
+      .set('x-webhook-secret', secret)
+      .send({
+        direct_message_events: [
+          { type: 'message_create', id: '1234567890123456789', message_create: { sender_id: '987654321', message_data: { text: 'Hi' } } },
+        ],
+        users: { '987654321': { id: '987654321', name: 'Meera Kapoor', screen_name: 'meera_k' } },
+      });
+    expect(replay.status).toBe(409);
+  });
+
+  it('accepts generic social payloads from LinkedIn, Telegram, Hike and Snapchat with source attribution', async () => {
+    const { agent: a } = await signupFresh('Social Owner', 'Social Org');
+    const cases = [
+      { source: 'LINKEDIN', name: 'Arjun Nair', handle: '@arjunnair', email: 'arjun@example.com', message: 'Saw your agency post', phone: undefined },
+      { source: 'HIKE', name: 'Riya Gupta', handle: '@riya', phone: '9812233445', message: 'Interested in packaging' },
+      { source: 'TELEGRAM', name: 'Kabir Singh', handle: '@kabir', email: 'kabir@example.com', message: 'Quote for logo design', phone: undefined },
+      { source: 'SNAPCHAT', name: 'Zoya Khan', handle: '@zoya', phone: '9822334455', message: 'Need a website' },
+    ];
+    for (const c of cases) {
+      const secret = await connectSource(c.source, a);
+      const payload: Record<string, unknown> = { name: c.name, handle: c.handle, message: c.message, externalId: `msg-${c.source}-1` };
+      if (c.phone) payload.phone = c.phone;
+      if (c.email) payload.email = c.email;
+      const res = await request(server)
+        .post(`/api/webhooks/${c.source.toLowerCase()}`)
+        .set('x-webhook-secret', secret)
+        .send(payload);
+      expect(res.status).toBe(201);
+      const leads = await a.get(`/api/leads?search=${encodeURIComponent(c.name.split(' ')[0])}`);
+      const lead = leads.body.data.rows[0];
+      expect(lead.source).toBe(c.source);
+      expect(lead.name).toBe(c.name);
+      expect(lead.customFields.socialHandle).toBe(c.handle);
+      expect(lead.notes).toContain('Message:');
+    }
+  });
+
+  it('rejects a generic social payload without a name and any contact', async () => {
+    const { agent: a } = await signupFresh('Social Reject', 'Reject Org');
+    const secret = await connectSource('SNAPCHAT', a);
+    const res = await request(server)
+      .post('/api/webhooks/snapchat')
+      .set('x-webhook-secret', secret)
+      .send({ handle: '@nobody' });
+    expect(res.status).toBe(422);
+  });
+});
+
+describe('Phase 16 · Meta outbound honesty', () => {
+  it('fails with an actionable message naming the missing config', async () => {
+    const { metaProvider } = await import('../whatsapp/meta');
+    // Test env has no WHATSAPP_ACCESS_TOKEN / PHONE_NUMBER_ID → unconfigured path.
+    // The provider throws before using the args, but the interface requires them.
+    await expect(metaProvider.sendText({ orgId: 'x', to: '919999999999', body: 'hi' })).rejects.toThrow(/WHATSAPP_ACCESS_TOKEN/);
+    await expect(metaProvider.sendTemplate({ orgId: 'x', to: '919999999999', templateName: 't', language: 'en', params: [] })).rejects.toThrow(/WHATSAPP_PHONE_NUMBER_ID/);
+  });
+});

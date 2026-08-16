@@ -18,6 +18,8 @@ import { prisma } from '../lib/prisma';
 import { createLead, findDuplicate } from '../services/leads';
 import { indiamartAdapter } from './leadsource/indiamart';
 import { metaLeadsAdapter } from './leadsource/meta-leads';
+import { twitterAdapter } from './leadsource/twitter';
+import { genericSocialAdapter } from './leadsource/generic-social';
 
 /** Canonical lead shape every adapter produces. */
 export interface NormalizedLead {
@@ -39,6 +41,13 @@ export interface LeadSourceAdapter {
   validate(raw: unknown): string | null;
   /** Map the provider payload onto the canonical shape. */
   normalize(raw: unknown): NormalizedLead;
+  /**
+   * Social DM adapters (X, Telegram, Hike…) often receive only a name + message
+   * with no phone/email. When true, a name + message (in notes) is accepted as
+   * a lead — the salesperson follows up in-platform. Lead-form adapters
+   * (IndiaMART, Meta) stay strict.
+   */
+  allowsMessageOnly?: boolean;
 }
 
 export type WebhookOutcome = 'SUCCESS' | 'DUPLICATE' | 'INVALID' | 'FAILED';
@@ -93,8 +102,9 @@ export async function processInboundLead(opts: {
     }
 
     const lead = adapter.normalize(raw);
-    if (!lead.name || (!lead.phone && !lead.email)) {
-      const msg = 'Payload is missing a name and at least one of phone/email.';
+    const hasContact = Boolean(lead.phone || lead.email || (adapter.allowsMessageOnly && lead.notes));
+    if (!lead.name || !hasContact) {
+      const msg = 'Payload is missing a name and at least one of phone/email (or a message).';
       await record('INVALID', { message: msg });
       return { outcome: 'INVALID', message: msg };
     }
@@ -139,13 +149,22 @@ export async function processInboundLead(opts: {
   }
 }
 
-export { indiamartAdapter, metaLeadsAdapter };
+export { indiamartAdapter, metaLeadsAdapter, twitterAdapter, genericSocialAdapter };
 
-/** Simple registry — the webhook route picks an adapter by source. */
+/**
+ * Simple registry — the webhook route picks an adapter by source.
+ * Social DM platforms without a dedicated format share the generic adapter;
+ * the source is still recorded on the lead and every integration log.
+ */
 const REGISTRY: Record<string, LeadSourceAdapter> = {
   INDIAMART: indiamartAdapter,
   FACEBOOK: metaLeadsAdapter,
   INSTAGRAM: metaLeadsAdapter,
+  TWITTER: twitterAdapter,
+  LINKEDIN: genericSocialAdapter,
+  TELEGRAM: genericSocialAdapter,
+  HIKE: genericSocialAdapter,
+  SNAPCHAT: genericSocialAdapter,
 };
 
 export function getLeadSourceAdapter(source: string): LeadSourceAdapter | null {

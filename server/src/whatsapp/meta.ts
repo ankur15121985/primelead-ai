@@ -23,16 +23,31 @@ export const metaProvider: WhatsAppProvider = {
   name: 'meta',
   configured: Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID),
 
+  /**
+   * IMPLEMENTATION REQUIRED — outbound sends are not shipped until exercised
+   * against a real WhatsApp Business phone number. When unconfigured we fail
+   * loudly with the exact env vars needed so nobody mistakes this for a live
+   * integration; when configured but still not implemented, the message says
+   * so explicitly instead of pretending.
+   */
   async sendText(): Promise<SendResult> {
-    // IMPLEMENTATION REQUIRED — POST /{phone_number_id}/messages with
+    // POST /{phone_number_id}/messages with
     // { messaging_product: 'whatsapp', recipient_type: 'individual', type: 'text', text: { body } }
-    throw new Error('Meta outbound messages are not implemented yet (IMPLEMENTATION REQUIRED).');
+    throw new Error(
+      this.configured
+        ? 'Meta outbound messages are not implemented yet (IMPLEMENTATION REQUIRED): the adapter needs the Graph API send call to be built and tested against your WhatsApp Business number.'
+        : 'Meta outbound is not configured. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID (env) or the provider settings in Inbox → provider settings, then retry.'
+    );
   },
 
   async sendTemplate(): Promise<SendResult> {
-    // IMPLEMENTATION REQUIRED — POST /{phone_number_id}/messages with
+    // POST /{phone_number_id}/messages with
     // { messaging_product: 'whatsapp', type: 'template', template: { name, language: { code }, components: [...] } }
-    throw new Error('Meta template sends are not implemented yet (IMPLEMENTATION REQUIRED).');
+    throw new Error(
+      this.configured
+        ? 'Meta template sends are not implemented yet (IMPLEMENTATION REQUIRED): the adapter needs the Graph API send call to be built and tested against your WhatsApp Business number.'
+        : 'Meta outbound is not configured. Set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID (env) or the provider settings in Inbox → provider settings, then retry.'
+    );
   },
 
   parseWebhook(

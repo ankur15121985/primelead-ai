@@ -95,11 +95,15 @@ proxy terminating TLS.
 SQLite is a single file: `server/data/primelead.db` (volume
 `primelead-data`).
 
-- **Backup:** stop-write consistency is easiest with the SQLite online backup:
+- **Backup:** use the built-in online snapshot — transactionally consistent, zero downtime, no extra tools:
   ```bash
-  docker exec <container> sh -c "cd /app/server/data && sqlite3 primelead.db '.backup /tmp/primelead-backup.db'"  # or:
-  docker cp <container>:/app/server/data/primelead.db ./backup-$(date +%F).db
+  npm run backup -w server                              # → server/data/backups/primelead-<stamp>.db
+  npm run backup -w server -- /custom/path/x.db         # explicit destination
+  # container:
+  docker exec <container> npx tsx scripts/backup-db.ts /backups/primelead.db
   ```
+  (The script is an online `VACUUM INTO` through the app's own Prisma client.)
+  A `docker cp` of the live file also works when the app is briefly stopped.
 - **Restore:** stop the container, copy the backup over the volume file,
   start again. Restore to the same or newer app version.
 - **Retention:** keep daily backups for 14 days and a weekly for 8 weeks;
