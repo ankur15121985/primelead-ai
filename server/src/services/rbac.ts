@@ -12,17 +12,37 @@ export async function seedOrgRoles(orgId: string): Promise<void> {
   const existing = await prisma.role.findMany({ where: { orgId }, select: { key: true } });
   const have = new Set(existing.map((r) => r.key));
   const missing = SYSTEM_ROLES.filter((r) => !have.has(r.key));
-  if (missing.length === 0) return;
-  await prisma.role.createMany({
-    data: missing.map((r) => ({
-      orgId,
-      key: r.key,
-      name: r.name,
-      description: r.description,
-      isSystem: true,
-      permissions: r.permissions as any,
-    })),
-  });
+  if (missing.length > 0) {
+    await prisma.role.createMany({
+      data: missing.map((r) => ({
+        orgId,
+        key: r.key,
+        name: r.name,
+        description: r.description,
+        isSystem: true,
+        permissions: r.permissions as any,
+      })),
+    });
+  }
+  await syncSystemRoles(orgId);
+}
+
+/**
+ * Refresh every org's built-in role rows to match the code definitions.
+ *
+ * System roles are defined in code; the DB copy is a cache. When the product
+ * ships new permissions (e.g. a new module), existing orgs must receive them
+ * without a manual migration. Custom (non-system) roles are left untouched.
+ */
+export async function syncSystemRoles(orgId: string): Promise<void> {
+  await Promise.all(
+    SYSTEM_ROLES.map((r) =>
+      prisma.role.updateMany({
+        where: { orgId, key: r.key, isSystem: true },
+        data: { permissions: r.permissions as any },
+      })
+    )
+  );
 }
 
 /** Permission set for a user's role within their org. */

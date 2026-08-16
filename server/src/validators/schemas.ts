@@ -279,6 +279,40 @@ export const aiSettingsSchema = z.object({
   monthlyLimitRupees: z.coerce.number().int().min(0).max(100_000_000).optional(),
 });
 
+// ── Automations ───────────────────────────────────────────────
+export const automationActionSchema = z.object({
+  type: z.enum(['CREATE_TASK', 'ADD_TAG', 'CHANGE_STAGE', 'ASSIGN_USER', 'NOTIFY_TEAM']),
+  title: z.string().trim().max(200).optional(),
+  kind: z.string().trim().max(40).optional(),
+  priority: z.string().trim().max(20).optional(),
+  dueInDays: z.coerce.number().int().min(0).max(365).optional(),
+  tag: z.string().trim().max(40).optional(),
+  stageId: z.string().optional(),
+  stageName: z.string().trim().max(120).optional(),
+  userId: z.string().optional(),
+  mode: z.enum(['roundRobin', 'leadOwner']).optional(),
+  message: z.string().trim().max(500).optional(),
+  role: z.string().trim().max(40).optional(),
+});
+
+export const automationRuleSchema = z.object({
+  name: z.string().trim().min(2, 'Give this rule a name').max(120),
+  trigger: z.enum([
+    'LEAD_CREATED', 'LEAD_ASSIGNED', 'STAGE_CHANGED', 'FOLLOW_UP_OVERDUE',
+    'INVOICE_CREATED', 'PAYMENT_RECEIVED', 'QUOTATION_CREATED',
+  ]),
+  triggerConfig: z
+    .object({
+      source: z.string().max(40).optional(),
+      stageId: z.string().optional(),
+      stageName: z.string().max(120).optional(),
+      minValue: z.coerce.number().min(0).optional(),
+    })
+    .optional(),
+  actions: z.array(automationActionSchema).min(1, 'Add at least one action').max(10),
+  enabled: z.boolean().optional(),
+});
+
 // ── Integrations ───────────────────────────────────────────────
 export const integrationUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),

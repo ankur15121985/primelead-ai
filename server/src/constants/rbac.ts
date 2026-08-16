@@ -54,6 +54,9 @@ export const PERMISSIONS = [
   // Reports
   'reports.view',
   'reports.export',
+  // Automations
+  'automation.view',
+  'automation.manage',
   // QR lead capture
   'qr.manage',
   // AI
@@ -111,6 +114,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'quotations.view', 'quotations.create', 'quotations.edit', 'quotations.delete', 'quotations.convert',
       'invoices.view', 'invoices.create', 'invoices.edit', 'invoices.delete', 'invoices.cancel', 'invoices.pay', 'invoices.export',
       'reports.view', 'reports.export',
+      'automation.view', 'automation.manage',
       'qr.manage',
       'ai.use',
       'integrations.manage',
@@ -127,6 +131,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'contacts.view', 'contacts.create', 'contacts.edit',
       'pipeline.view',
       'tasks.view', 'tasks.create', 'tasks.edit', 'tasks.complete',
+      'automation.view',
       'inbox.view', 'inbox.send', 'inbox.assign',
       'quotations.view', 'quotations.create', 'quotations.edit',
       'invoices.view',
@@ -176,6 +181,7 @@ export const SYSTEM_ROLES: SystemRoleDef[] = [
       'contacts.view',
       'pipeline.view',
       'tasks.view',
+      'automation.view',
       'inbox.view',
       'quotations.view',
       'invoices.view',

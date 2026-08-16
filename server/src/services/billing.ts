@@ -205,6 +205,19 @@ export async function processPaymentEvent(provider: string, event: VerifiedEvent
         }),
         prisma.organization.update({ where: { id: payment.orgId }, data: { plan: plan.slug.toUpperCase() } }),
       ]);
+
+      // Automation hook: a settled payment is a first-class trigger.
+      try {
+        const { fireAutomation } = await import('./automation');
+        await fireAutomation(payment.orgId, 'PAYMENT_RECEIVED', {
+          userId: undefined,
+          entityType: 'PAYMENT',
+          entityId: payment.id,
+          meta: { amount: event.amountPaise ?? payment.amount, provider },
+        });
+      } catch {
+        // automations must never break webhook processing
+      }
       return;
     }
 

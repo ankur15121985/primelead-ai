@@ -34,6 +34,7 @@ import adminRoutes from './routes/admin.routes';
 import referralRoutes from './routes/referral.routes';
 import rolesRoutes from './routes/roles.routes';
 import teamsRoutes from './routes/teams.routes';
+import automationRoutes from './routes/automation.routes';
 
 export function createApp() {
   const app = express();
@@ -102,6 +103,7 @@ export function createApp() {
   app.use('/api/referrals', referralRoutes);
   app.use('/api/roles', rolesRoutes);
   app.use('/api/teams', teamsRoutes);
+  app.use('/api/automations', automationRoutes);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

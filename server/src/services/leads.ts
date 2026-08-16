@@ -166,6 +166,23 @@ export async function createLead(input: CreateLeadInput) {
     });
   }
 
+  // Automation hook — awaited inside try/catch so it never blocks lead creation.
+  try {
+    const { fireAutomation } = await import('./automation');
+    await fireAutomation(orgId, 'LEAD_CREATED', {
+      leadId: lead.id,
+      leadName: lead.name,
+      leadSource: source,
+      ownerId: ownerId || undefined,
+      userId: actorId || undefined,
+      entityType: 'LEAD',
+      entityId: lead.id,
+      meta: { expectedValue: expectedValueRupees },
+    });
+  } catch {
+    // automations must never break lead creation
+  }
+
   return lead;
 }
 

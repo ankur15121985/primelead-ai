@@ -241,6 +241,23 @@ npm run db:seed             # reset demo data (idempotent)
 - **Tenant resolution:** Meta webhooks are unauthenticated, so the org is resolved from the payload's `phone_number_id` (scanned across org settings). GET hub verification matches the org's configured `verifyToken` with `safeEqual`. Provider tokens are **write-only** — `getWhatsAppConfig` returns `hasToken`, never the token; an empty `token` on PATCH keeps the existing one.
 - **Inbox UI:** `client/src/pages/app/Inbox.tsx` — two-pane list/thread, status tabs, mine-only filter, search by name/number, template sends with `{{n}}` param inputs, assign/close, demo simulator dialog, provider settings dialog.
 
+### Lead-source adapters (Phase 7)
+- **Interface:** `integrations/leadsource.ts` defines `LeadSourceAdapter` (`receiveLead`, `validateLead`, `normalizeLead`, `deduplicateLead`, `createLead`) plus a registry (`getAdapter(source)`). Adapters: `indiamart.ts` (buyer-enquiry payload → normalized lead) and `meta-leads.ts` (Lead Ads payload with campaign/adset attribution).
+- **Webhook routing:** `routes/webhooks.routes.ts` resolves the adapter from the integration's `source` and runs payloads through the full pipeline; every attempt (success or failure, with reason) is recorded to `IntegrationLog` (immutable, org-scoped). Generic webhooks for sources without an adapter keep the old secret-verified path.
+- **Health:** `GET /api/integrations/:source/logs` (recent attempts) and the connections list includes `lastSyncAt`/`error` per integration. Client: Integrations page shows a per-connection activity log + health badge.
+
+### AI usage ledger, budgets & lead intelligence (Phase 9)
+- **Ledger:** `services/ai-usage.ts` — every AI call records an immutable `AiUsage` row (org, user, provider, model, tokens, cost estimate, category). Provider interface now returns `{ text, usage }` (tokens) from `ai/provider.ts`.
+- **Budgets:** org setting `monthlyLimitRupees` is enforced server-side in `checkAiBudget` — over budget → `429 AI_BUDGET_EXCEEDED`. `GET /ai/usage` shows spend/limits; `PATCH /ai/settings` adjusts them.
+- **Lead intelligence:** `services/ai-features.ts` — `leadSummary`, `leadScore`, `nextBestAction` built from real lead history. Demo fallbacks (deterministic scoring from activity/value/source) when no AI key; honest `503 AI_NOT_CONFIGURED` when AI mode is OFF.
+
+### Automation engine (Phase 10)
+- **Models:** `AutomationRule` (org, name, trigger, `triggerConfig` JSON, `actions` JSON, enabled) + `AutomationRun` (immutable execution log: trigger, entity, status, result).
+- **Engine:** `services/automation.ts` — `runAutomationTrigger(orgId, trigger, ctx)` evaluates enabled rules (conditions: source/stage/minValue), executes each action (`CREATE_TASK`, `ADD_TAG`, `CHANGE_STAGE`, `ASSIGN_USER`, `NOTIFY_TEAM`) with per-action error isolation, and writes one `AutomationRun` per rule. `runRuleForLead` powers manual runs (works while paused).
+- **Event hooks:** `createLead` (LEAD_CREATED), lead PATCH (STAGE_CHANGED, LEAD_ASSIGNED), `syncOverdue` (FOLLOW_UP_OVERDUE), invoice create (INVOICE_CREATED, QUOTATION_CREATED for converted quotes), billing payment settle (PAYMENT_RECEIVED). Hooks await so tests are deterministic.
+- **Routes/UI:** `routes/automation.routes.ts` (CRUD + `/:id/run` + `/runs`, `automation.view|manage`) and `client/src/pages/app/Automations.tsx` (rule builder with trigger/condition/action pickers, enable toggle, run log).
+- **System-role sync:** `syncSystemRoles` (called at startup and org creation) refreshes built-in role permission rows to the code definitions, so new modules' permissions reach existing orgs without a migration. Custom roles are untouched.
+
 ### Contacts & Calendar
 - Contacts: simple org-scoped CRUD (`routes/contacts.routes.ts`), lead links validated org-side.
 - Calendar is a client month-grid over `GET /api/tasks?view=all` (added to `tasks.routes.ts`).
@@ -251,7 +268,7 @@ npm run db:seed             # reset demo data (idempotent)
 npm test
 ```
 
-Current coverage (80 tests): GST math (in paise), lead scoring, signup/login, duplicate detection, auto-assignment (least-loaded + round-robin), pipeline moves + activity logging, follow-ups, CSV export, QR capture, **super-admin access control** (listed users allowed, others 403, org suspend/reactivate), CSRF enforcement, cross-org isolation, **Phase 1**: request-ids, sessions/MFA/lockout/login-history, RBAC + custom roles, teams, paise boundaries; **Phase 2**: webhook signature rejection, demo upgrade → signed-webhook activation, webhook idempotency (double-delivery ack), failed-payment → PAST_DUE, refunds, amount-mismatch rejection, payment tenant isolation, and Plan-table usage-limit enforcement (leads + users).
+Current coverage (**129 tests**): GST math (in paise), lead scoring, signup/login, duplicate detection, auto-assignment (least-loaded + round-robin), pipeline moves + activity logging, follow-ups, CSV export, QR capture, **super-admin access control** (listed users allowed, others 403, org suspend/reactivate), CSRF enforcement, cross-org isolation, **Phase 1**: request-ids, sessions/MFA/lockout/login-history, RBAC + custom roles, teams, paise boundaries; **Phase 2**: webhook signature rejection, demo upgrade → signed-webhook activation, webhook idempotency (double-delivery ack), failed-payment → PAST_DUE, refunds, amount-mismatch rejection, payment tenant isolation, and Plan-table usage-limit enforcement (leads + users). **Phase 4/5**: credit/debit notes, receipts, GST config, GSTIN validation, refunds, renewal roll-forward, reconciliation. **Phase 6**: WhatsApp settings token secrecy, hub handshake, inbound lead linking, Meta webhook idempotency + bad-signature rejection, outbound + templates, status webhooks, assign/close/read, RBAC, org isolation. **Phase 7**: IndiaMART + Meta normalization, dedupe, invalid-payload logs, logs/health endpoints, org isolation. **Phase 9**: AI usage ledger, budget enforcement, lead summary/score/next-action. **Phase 10**: LEAD_CREATED + STAGE_CHANGED triggers with conditions, actions (tag/task/notify/assign/stage), manual run, run log, RBAC, org isolation.
 
 **How tests isolate the DB:** `api.test.ts` points `DATABASE_URL` at a throwaway SQLite file, `prisma db push`es the schema, and imports the app dynamically. It also sets `SUPER_ADMIN_EMAILS` so the test owner is the admin.
 

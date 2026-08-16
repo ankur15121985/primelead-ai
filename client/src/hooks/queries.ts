@@ -3,7 +3,7 @@ import { api, download } from '@/lib/api';
 import type {
   AdminOrg, AdminOrgDetail, AdminOverview, AdminSystem, AiConversation, AiConversationDetail,
   BillingData, Contact, ConversationDetail, ConversationListResponse, CreditNote, DashboardData,
-  AiLeadInsight, AiSettings, AiUsageResponse, DebitNote, GstSettings, Integration,
+  AiLeadInsight, AiSettings, AiUsageResponse, AutomationRule, AutomationRun, AutomationsResponse, DebitNote, GstSettings, Integration,
   IntegrationCatalogItem, IntegrationLogsResponse, Invoice, Lead, LeadDetail, LeadListResponse,
   Notification, Pipeline, PipelineStage, PublicQrMeta, QrCode, QrDetail, Quotation,
   Reconciliation, ReportData, Task, UpgradeResult, User, WaSettings, WaTemplate,
@@ -891,6 +891,49 @@ export function useDeleteContact() {
   return useMutation({
     mutationFn: (id: string) => api(`/contacts/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
+  });
+}
+
+// ── Automations ───────────────────────────────────────────
+export function useAutomations() {
+  return useQuery({
+    queryKey: ['automations'],
+    queryFn: () => api<AutomationsResponse>('/automations'),
+    staleTime: 10_000,
+  });
+}
+
+export function useCreateAutomation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Record<string, unknown>) => api<{ rule: AutomationRule }>('/automations', { body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['automations'] }),
+  });
+}
+
+export function useUpdateAutomation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string } & Record<string, unknown>) =>
+      api<{ rule: AutomationRule }>(`/automations/${input.id}`, { method: 'PATCH', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['automations'] }),
+  });
+}
+
+export function useDeleteAutomation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/automations/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['automations'] }),
+  });
+}
+
+export function useRunAutomation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; leadId?: string }) =>
+      api<{ executed: boolean; run: AutomationRun | null }>(`/automations/${input.id}/run`, { body: { leadId: input.leadId } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['automations'] }),
   });
 }
 

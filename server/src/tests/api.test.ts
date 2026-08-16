@@ -2588,3 +2588,182 @@ describe('Phase 9 · lead intelligence (rule fallback when no AI key)', () => {
     expect(denied.status).toBe(404);
   });
 });
+// ────────────────────────────────────────────────────────────────────────
+// Phase 10 — Automation engine
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 10 · automation rules as data', () => {
+  it('fires a LEAD_CREATED rule: creates a task, adds a tag, and logs the run', async () => {
+    const { agent: a } = await signupFresh('Auto Owner', 'Auto Org');
+    const csrf = await getCsrf(a);
+
+    const rule = await a.post('/api/automations').set('x-csrf-token', csrf).send({
+      name: 'New lead follow-up',
+      trigger: 'LEAD_CREATED',
+      actions: [
+        { type: 'CREATE_TASK', title: 'Call the new lead', kind: 'CALL', dueInDays: 1 },
+        { type: 'ADD_TAG', tag: 'hot-lead' },
+      ],
+    });
+    expect(rule.status).toBe(201);
+    const ruleId = rule.body.data.rule.id;
+
+    const created = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Automation Target',
+      phone: '9815550101',
+      source: 'WEBSITE',
+    });
+    expect(created.status).toBe(201);
+    const leadId = created.body.data.lead.id;
+
+    // the task was created by the automation
+    const tasks = await a.get('/api/tasks?view=all');
+    const autoTask = tasks.body.data.tasks.find((t: any) => t.title === 'Call the new lead' && t.leadId === leadId);
+    expect(autoTask).toBeTruthy();
+
+    // the tag was added
+    const detail = await a.get(`/api/leads/${leadId}`);
+    expect(detail.body.data.lead.tags).toContain('hot-lead');
+
+    // the run was logged as SUCCESS and the rule counters moved
+    const list = await a.get('/api/automations');
+    const ruleRow = list.body.data.rules.find((r: any) => r.id === ruleId);
+    expect(ruleRow.runCount).toBe(1);
+    expect(ruleRow.lastRunAt).toBeTruthy();
+    const run = list.body.data.runs[0];
+    expect(run.status).toBe('SUCCESS');
+    expect(run.trigger).toBe('LEAD_CREATED');
+    expect(run.result.actions.some((x: any) => x.message.includes('Call the new lead'))).toBe(true);
+  });
+
+  it('respects source conditions (SKIPPED when they do not match) and paused rules', async () => {
+    const { agent: a } = await signupFresh('Auto Cond Owner', 'Auto Cond Org');
+    const csrf = await getCsrf(a);
+
+    const rule = await a.post('/api/automations').set('x-csrf-token', csrf).send({
+      name: 'IndiaMART only',
+      trigger: 'LEAD_CREATED',
+      triggerConfig: { source: 'INDIAMART' },
+      actions: [{ type: 'ADD_TAG', tag: 'im-lead' }],
+    });
+    const ruleId = rule.body.data.rule.id;
+
+    // lead from WEBSITE → conditions not met → SKIPPED run, no tag
+    const webLead = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'Web Guy', phone: '9815550202', source: 'WEBSITE' });
+    const webDetail = await a.get(`/api/leads/${webLead.body.data.lead.id}`);
+    expect(webDetail.body.data.lead.tags || []).not.toContain('im-lead');
+
+    // lead from INDIAMART → tag added
+    const imLead = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'IM Guy', phone: '9815550303', source: 'INDIAMART' });
+    const imDetail = await a.get(`/api/leads/${imLead.body.data.lead.id}`);
+    expect(imDetail.body.data.lead.tags).toContain('im-lead');
+
+    // pause the rule — nothing fires any more
+    await a.patch(`/api/automations/${ruleId}`).set('x-csrf-token', await getCsrf(a)).send({ enabled: false });
+    const before = (await a.get('/api/automations')).body.data.rules.find((r: any) => r.id === ruleId).runCount;
+    await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'IM Two', phone: '9815550404', source: 'INDIAMART' });
+    const after = (await a.get('/api/automations')).body.data.rules.find((r: any) => r.id === ruleId).runCount;
+    expect(after).toBe(before);
+  });
+
+  it('moves a lead to a stage when the STAGE_CHANGED trigger fires and re-assigns via round-robin', async () => {
+    const { agent: a } = await signupFresh('Auto Stage Owner', 'Auto Stage Org');
+    const { prisma } = await import('../lib/prisma');
+    const csrf = await getCsrf(a);
+
+    // GROWTH so the plan cap (STARTER = 2 users) doesn't block the second salesperson
+    await prisma.organization.update({
+      where: { id: (await a.get('/api/auth/me')).body.data.org.id },
+      data: { plan: 'GROWTH' },
+    });
+    await a.post('/api/team').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Auto Sales A', email: 'autosalesa@test.com', role: 'SALES', password: 'StrongPass123',
+    });
+    const second = await a.post('/api/team').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Auto Sales B', email: 'autosalesb@test.com', role: 'SALES', password: 'StrongPass123',
+    });
+    expect(second.status).toBe(201);
+
+    const pipeline = await a.get('/api/pipeline');
+    const qualified = pipeline.body.data.stages.find((s: any) => s.name === 'Qualified');
+
+    const rule = await a.post('/api/automations').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Escalate qualified',
+      trigger: 'STAGE_CHANGED',
+      actions: [
+        { type: 'ASSIGN_USER', mode: 'roundRobin' },
+        { type: 'NOTIFY_TEAM', message: 'A lead reached Qualified — focus on it!' },
+      ],
+    });
+    expect(rule.status).toBe(201);
+
+    const created = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'Stage Target', phone: '9815550505', source: 'MANUAL' });
+    const leadId = created.body.data.lead.id;
+    const firstOwner = created.body.data.lead.ownerId;
+
+    // move the lead to Qualified → automation reassigns + notifies
+    await a.patch(`/api/leads/${leadId}`).set('x-csrf-token', await getCsrf(a)).send({ stageId: qualified.id });
+
+    const list = await a.get('/api/automations');
+
+    const detail = await a.get(`/api/leads/${leadId}`);
+    expect(detail.body.data.lead.ownerId).not.toBe(firstOwner); // round-robin moved it
+
+    expect(list.body.data.runs[0].status).toBe('SUCCESS');
+  });
+
+  it('manual run executes a paused rule against a lead', async () => {
+    const { agent: a } = await signupFresh('Auto Manual Owner', 'Auto Manual Org');
+    const csrf = await getCsrf(a);
+
+    const rule = await a.post('/api/automations').set('x-csrf-token', csrf).send({
+      name: 'Paused but testable',
+      trigger: 'LEAD_CREATED',
+      enabled: false,
+      actions: [{ type: 'ADD_TAG', tag: 'manually-ran' }],
+    });
+    const ruleId = rule.body.data.rule.id;
+
+    const created = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'Manual Target', phone: '9815550606' });
+    const leadId = created.body.data.lead.id;
+    // paused → no automatic run
+    const detail0 = await a.get(`/api/leads/${leadId}`);
+    expect(detail0.body.data.lead.tags || []).not.toContain('manually-ran');
+
+    const run = await a.post(`/api/automations/${ruleId}/run`).set('x-csrf-token', await getCsrf(a)).send({ leadId });
+    expect(run.status).toBe(200);
+    expect(run.body.data.executed).toBe(true);
+
+    const detail = await a.get(`/api/leads/${leadId}`);
+    expect(detail.body.data.lead.tags).toContain('manually-ran');
+  });
+
+  it('keeps rules org-isolated and manager-gated', async () => {
+    const { agent: a } = await signupFresh('Auto Iso A', 'Auto Iso Org A');
+    const { agent: b } = await signupFresh('Auto Iso B', 'Auto Iso Org B');
+
+    const rule = await a.post('/api/automations').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Org A rule', trigger: 'LEAD_CREATED', actions: [{ type: 'ADD_TAG', tag: 'a' }],
+    });
+    const ruleId = rule.body.data.rule.id;
+
+    // org B cannot see or delete org A's rule
+    const listB = await b.get('/api/automations');
+    expect(listB.body.data.rules.some((r: any) => r.id === ruleId)).toBe(false);
+    const delB = await b.delete(`/api/automations/${ruleId}`).set('x-csrf-token', await getCsrf(b));
+    expect(delB.status).toBe(404);
+
+    // a viewer cannot create or run rules
+    const { agent: owner } = await signupFresh('Auto Rbac Owner', 'Auto Rbac Org');
+    const viewerEmail = 'autoviewer@test.com';
+    await owner.post('/api/team').set('x-csrf-token', await getCsrf(owner)).send({
+      name: 'Auto Viewer', email: viewerEmail, role: 'VIEWER', password: 'StrongPass123',
+    });
+    const viewer = request.agent(server);
+    await loginAs(viewer, viewerEmail, 'StrongPass123');
+    const create = await viewer.post('/api/automations').set('x-csrf-token', await getCsrf(viewer)).send({
+      name: 'Nope', trigger: 'LEAD_CREATED', actions: [{ type: 'ADD_TAG', tag: 'x' }],
+    });
+    expect(create.status).toBe(403);
+  });
+});

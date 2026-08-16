@@ -40,6 +40,7 @@ import { Billing } from '@/pages/app/Billing';
 import { Team } from '@/pages/app/Team';
 import { Settings } from '@/pages/app/Settings';
 import { QrCodes } from '@/pages/app/QrCodes';
+import { Automations } from '@/pages/app/Automations';
 import { Onboarding } from '@/pages/app/Onboarding';
 
 export default function App() {
@@ -107,6 +108,7 @@ export default function App() {
         <Route path="integrations" element={<Integrations />} />
         <Route path="billing" element={<Billing />} />
         <Route path="qr-codes" element={<QrCodes />} />
+        <Route path="automations" element={<Automations />} />
         <Route path="team" element={<Team />} />
         <Route path="settings" element={<Settings />} />
       </Route>

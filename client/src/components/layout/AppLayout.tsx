@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, KanbanSquare, ListChecks, Shield, Settings, LogOut, Search, Menu, X, QrCode, ShieldCheck,
-  CalendarDays, BookUser, FileText, Receipt, BarChart3, Bot, Plug, CreditCard, MessageSquare,
+  CalendarDays, BookUser, FileText, Receipt, BarChart3, Bot, Plug, CreditCard, MessageSquare, Workflow,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { NotificationsBell } from './NotificationsBell';
@@ -31,6 +31,7 @@ const SELL_NAV = [
 const GROW_NAV = [
   { to: '/app/qr-codes', label: 'QR Codes', icon: QrCode },
   { to: '/app/integrations', label: 'Integrations', icon: Plug },
+  { to: '/app/automations', label: 'Automations', icon: Workflow },
   { to: '/app/team', label: 'Team', icon: Shield },
   { to: '/app/billing', label: 'Billing', icon: CreditCard },
   { to: '/app/settings', label: 'Settings', icon: Settings },

@@ -50,6 +50,8 @@ model Organization {
   notifications Notification[]
   aiConversations AiConversation[]
   aiUsage      AiUsage[]
+  automationRules AutomationRule[]
+  automationRuns AutomationRun[]
   auditLogs    AuditLog[]
   subscription Subscription?
   payments     Payment[]
@@ -694,6 +696,46 @@ model AiUsage {
 
   @@index([orgId, createdAt])
   @@index([orgId, category])
+}
+
+// ────────────────────────────────────────────────────────────
+// Automation engine (spec §31) — rules as data, not hard-coded logic
+// ────────────────────────────────────────────────────────────
+
+model AutomationRule {
+  id            String           @id @default(cuid())
+  orgId         String
+  org           Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name          String
+  // LEAD_CREATED | LEAD_ASSIGNED | STAGE_CHANGED | FOLLOW_UP_OVERDUE |
+  // INVOICE_CREATED | PAYMENT_RECEIVED | QUOTATION_CREATED
+  trigger       String
+  triggerConfig Json? // conditions, e.g. { source, stageId, minValue }
+  actions       Json // [{ type, config }] — evaluated server-side, capped
+  enabled       Boolean          @default(true)
+  runCount      Int              @default(0)
+  lastRunAt     DateTime?
+  runs          AutomationRun[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([orgId, trigger, enabled])
+}
+
+model AutomationRun {
+  id         String          @id @default(cuid())
+  orgId      String
+  org        Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ruleId     String?
+  rule       AutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  trigger    String
+  entityType String // LEAD | TASK | INVOICE | PAYMENT | QUOTATION
+  entityId   String?
+  status     String          @default("SUCCESS") // SUCCESS | SKIPPED | PARTIAL | FAILED
+  result     Json?
+  createdAt  DateTime        @default(now())
+
+  @@index([orgId, createdAt])
 }
 
 // ────────────────────────────────────────────────────────────

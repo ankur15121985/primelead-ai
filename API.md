@@ -463,6 +463,58 @@ Totals: payments, succeeded (settled incl. refunded), failed, refunded, collecte
 ```
 Reads the lead's real history and returns `200 { data: { message, subject? } }`. Returns `503 AI_NOT_CONFIGURED` without a key.
 
+### `POST /ai/lead/summary` — summarize a lead's history
+```json
+{ "leadId": "..." }
+```
+Returns `200 { data: { summary } }`.
+
+### `POST /ai/lead/score` — score a lead (0–100) with reasoning
+```json
+{ "leadId": "..." }
+```
+Returns `200 { data: { score, confidence, factors } }`.
+
+### `POST /ai/lead/next-action` — suggest the next best action for a lead
+```json
+{ "leadId": "..." }
+```
+Returns `200 { data: { action, reason, dueInDays, priority } }`.
+
+### `GET /ai/usage` → `200 { data: { usage, limits, remaining } }`
+### `PATCH /ai/settings` (`ai.use`) — set `mode` and/or `monthlyLimitRupees`
+
+All AI calls are logged to an immutable `AiUsage` ledger (org, user, provider, model, tokens, cost estimate, category) and are gated by the org's monthly AI budget (`monthlyLimitRupees` in org settings). Over-budget requests fail with `429 AI_BUDGET_EXCEEDED`.
+
+---
+
+## Automations
+
+Rules are stored as data, evaluated on events, and every execution is logged to `AutomationRun`.
+
+### `GET /automations` (`automation.view`) → `200 { data: { rules, runs, triggers } }`
+### `POST /automations` (`automation.manage`) — create a rule
+```json
+{
+  "name": "Website lead triage",
+  "trigger": "LEAD_CREATED",
+  "triggerConfig": { "source": "WEBSITE" },
+  "actions": [
+    { "type": "ADD_TAG", "tag": "hot" },
+    { "type": "CREATE_TASK", "title": "Call this lead", "dueInDays": 1, "priority": "HIGH" },
+    { "type": "NOTIFY_TEAM", "message": "New website lead captured" }
+  ]
+}
+```
+Triggers: `LEAD_CREATED`, `LEAD_ASSIGNED`, `STAGE_CHANGED`, `FOLLOW_UP_OVERDUE`, `INVOICE_CREATED`, `PAYMENT_RECEIVED`, `QUOTATION_CREATED`.
+Actions: `CREATE_TASK`, `ADD_TAG`, `CHANGE_STAGE`, `ASSIGN_USER`, `NOTIFY_TEAM`.
+`triggerConfig` accepts optional `source`, `stageId`, `stageName`, `minValue` filters.
+
+### `PATCH /automations/:id` (`automation.manage`) — rename / retrigger / re-actions / enable
+### `DELETE /automations/:id` (`automation.manage`)
+### `POST /automations/:id/run` (`automation.manage`) — manual run against `{ leadId }` (works while paused, for test-before-enable)
+### `GET /automations/runs` (`automation.view`) — recent run log (rule name, trigger, entity, status, result)
+
 ---
 
 ## QR lead capture

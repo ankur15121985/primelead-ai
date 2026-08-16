@@ -138,6 +138,22 @@ router.post(
         },
       });
     }
+
+    // Automation hook: invoices are a first-class trigger.
+    try {
+      const { fireAutomation } = await import('../services/automation');
+      await fireAutomation(user.orgId, 'INVOICE_CREATED', {
+        leadId: invoice.leadId || undefined,
+        leadName: invoice.lead?.name,
+        userId: user.id,
+        entityType: 'INVOICE',
+        entityId: invoice.id,
+        meta: { number: invoice.number, total: paiseToRupees(invoice.total) },
+      });
+    } catch {
+      // automations must never break invoice creation
+    }
+
     return ok(res, { invoice: serializeInvoice(invoice) }, 201);
   })
 );

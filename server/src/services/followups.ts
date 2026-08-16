@@ -147,6 +147,20 @@ export async function syncOverdue(orgId: string): Promise<OverdueResult> {
   for (const task of overdue) {
     await prisma.task.update({ where: { id: task.id }, data: { status: 'MISSED' } });
     missed++;
+    // Automation hook: a follow-up going overdue is a trigger.
+    try {
+      const { fireAutomation } = await import('./automation');
+      await fireAutomation(orgId, 'FOLLOW_UP_OVERDUE', {
+        leadId: task.leadId || undefined,
+        leadName: task.lead?.name,
+        userId: task.userId,
+        entityType: 'TASK',
+        entityId: task.id,
+        meta: { taskTitle: task.title },
+      });
+    } catch {
+      // automations must never break the overdue sync
+    }
     if (!task.overdueNotifiedAt) {
       await prisma.task.update({ where: { id: task.id }, data: { overdueNotifiedAt: now } });
       await notify({

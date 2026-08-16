@@ -445,6 +445,22 @@ router.patch(
       });
     }
 
+    // Automation hook: stage changes are a first-class trigger.
+    if (stageChanged) {
+      const { fireAutomation } = await import('../services/automation');
+      await fireAutomation(user.orgId, 'STAGE_CHANGED', {
+        leadId: existing.id,
+        leadName: existing.name,
+        leadSource: existing.source,
+        ownerId: existing.ownerId || undefined,
+        userId: user.id,
+        stageId: newStage?.id || undefined,
+        stageName: newStage?.name || undefined,
+        entityType: 'LEAD',
+        entityId: existing.id,
+      });
+    }
+
     if (activityNotes.length) {
       await prisma.activity.create({
         data: {

@@ -497,6 +497,51 @@ export interface IntegrationCatalogItem {
   connected: boolean;
 }
 
+// ── Automations ────────────────────────────────────────────────
+export interface AutomationAction {
+  type: string;
+  title?: string;
+  kind?: string;
+  priority?: string;
+  dueInDays?: number;
+  tag?: string;
+  stageId?: string;
+  stageName?: string;
+  userId?: string;
+  mode?: string;
+  message?: string;
+  role?: string;
+}
+
+export interface AutomationRule {
+  id: string;
+  name: string;
+  trigger: string;
+  triggerConfig: Record<string, unknown>;
+  actions: AutomationAction[];
+  enabled: boolean;
+  runCount: number;
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutomationRun {
+  id: string;
+  trigger: string;
+  ruleName: string | null;
+  entityType: string;
+  status: string;
+  result: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AutomationsResponse {
+  rules: AutomationRule[];
+  runs: AutomationRun[];
+  triggers: string[];
+}
+
 export interface ReportData {
   range: { from: string; to: string };
   cards: {
