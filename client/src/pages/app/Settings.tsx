@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Building2, User, SlidersHorizontal, Sparkles, ShieldCheck, Smartphone, Monitor, LogOut, KeyRound, ReceiptText } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Building2, User, SlidersHorizontal, Sparkles, ShieldCheck, Smartphone, Monitor, LogOut, KeyRound, ReceiptText, Download, Trash2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api, download } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { friendlyError, useAuth } from '@/hooks/use-auth';
 import { useTeam, useGstSettings, useUpdateGstSettings } from '@/hooks/queries';
@@ -27,6 +27,7 @@ export function Settings() {
         <AssignmentRules />
         <AiSettings />
         <TaxSettingsCard />
+        <DataPrivacyCard />
         <SecurityCard />
       </div>
     </div>
@@ -555,6 +556,72 @@ function AiSettings() {
           Alternative: set <code className="rounded bg-muted px-1">AI_API_KEY</code> in the server <code className="rounded bg-muted px-1">.env</code> to enable AI for the whole workspace.
         </p>
         <Button onClick={save} loading={busy}>Save AI settings</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DataPrivacyCard() {
+  const { success, error } = useToast();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const exportData = async () => {
+    setBusy(true);
+    try {
+      await download('/account/export', 'primelead-export.json');
+      success('Export downloaded', 'A JSON copy of all your workspace data is being saved.');
+    } catch (err) {
+      error('Could not export', friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteWorkspace = async () => {
+    if (confirmText !== 'DELETE') {
+      error('Type DELETE to confirm', 'This is permanent — there is no undo.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api('/account/delete', { body: { confirm: 'DELETE' } });
+      success('Workspace deleted', 'Your data has been permanently removed.');
+      navigate('/');
+    } catch (err) {
+      error('Could not delete', friendlyError(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="border-destructive/30">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Download className="h-4 w-4" /> Data &amp; privacy</CardTitle>
+        <CardDescription>Export your data anytime, or permanently erase this workspace.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Export all data</p>
+            <p className="text-xs text-muted-foreground">A JSON file with leads, contacts, deals, invoices, messages and more.</p>
+          </div>
+          <Button variant="outline" onClick={exportData} loading={busy}>Download export</Button>
+        </div>
+        <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+          <p className="flex items-center gap-2 text-sm font-medium text-destructive"><Trash2 className="h-4 w-4" /> Delete workspace</p>
+          <p className="mt-1 text-xs text-muted-foreground">Permanently deletes every lead, contact, document and message for all team members. This cannot be undone.</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+              className="max-w-[220px]"
+            />
+            <Button variant="destructive" onClick={deleteWorkspace} loading={busy}>Delete workspace</Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

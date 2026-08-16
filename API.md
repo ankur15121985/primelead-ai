@@ -581,6 +581,20 @@ Clears the in-memory error feed. → `200 { data: { cleared: true } }`
 
 ---
 
+## Account lifecycle (data protection)
+
+### `GET /account/export` (authenticated) — GDPR-style JSON export
+Returns the full workspace dataset (organization, users, roles, teams, pipelines, leads, contacts, activities, tasks, documents, messages, AI usage, automation runs, audit log, payments, …) as an attached `primelead-export-*.json` file. Logs a `DATA_EXPORTED` audit event.
+
+### `POST /account/delete` (authenticated, `{ "confirm": "DELETE" }`)
+Permanently deletes the workspace and all its data (hard delete across every model, sessions/tokens revoked, cookies cleared, an `ORGANIZATION_DELETED` audit event written first). Requires the literal `DELETE` confirmation; anything else → `400`. After deletion the account can no longer log in.
+
+### CSV import hardening
+- Uploads are validated before parsing: `.csv`/`.txt` extension whitelist, MIME allowlist, and a magic-byte binary sniff (NUL-byte detection) — an executable spoofed as `.csv` is rejected.
+- OWASP **spreadsheet formula injection** is neutralised: free-text cells (`Name`, `Company`, `Notes`, …) beginning with `=`, `+`, `-`, `@` get a `'` prefix so Excel/Sheets treat them as text. Phone/email cells are untouched — a legitimate `+91…` number is preserved.
+
+---
+
 ## Misc
 
 ### `GET /health` — public

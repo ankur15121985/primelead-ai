@@ -16,6 +16,7 @@ import {
   serializeLead,
 } from '../services/leads';
 import { rupeesToPaise, paiseToRupees } from '../lib/money';
+import { assertSafeCsvUpload, sanitizeCsvCell } from '../lib/file-security';
 import { recordAssignment } from '../services/assignment';
 import { createFollowUp, completeFollowUp } from '../services/followups';
 import { isManagerOrAbove, assertManagerOrAbove } from '../middleware/auth';
@@ -144,6 +145,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const user = (req as AuthedRequest).user;
     if (!req.file) throw badRequest('Attach a CSV file to import.');
+    // Security: whitelisted extension + MIME + binary sniff, then OWASP
+    // formula-injection neutralisation on every cell before anything persists.
+    assertSafeCsvUpload(req.file);
     const text = req.file.buffer.toString('utf-8');
     let records: Record<string, string>[];
     try {
@@ -152,6 +156,16 @@ router.post(
       throw badRequest('Could not read that CSV file. Make sure it has a header row.');
     }
     if (!records.length) throw badRequest('The CSV file is empty.');
+    // Formula-injection guard applies to free-text cells only — never to
+    // phone/email, where a leading `+` (e.g. +919876543210) is legitimate.
+    records = records.map((r) => {
+      const textKeys = ['Name', 'name', 'Lead Name', 'Customer Name', 'Company', 'company', 'Notes', 'notes'];
+      const out = { ...r };
+      for (const k of textKeys) {
+        if (k in out) out[k] = sanitizeCsvCell(out[k]) as string;
+      }
+      return out as Record<string, string>;
+    });
 
     const pick = (...keys: string[]) => {
       const key = keys.find((k) => records[0] && k in records[0]);

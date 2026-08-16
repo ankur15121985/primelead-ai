@@ -2767,3 +2767,109 @@ describe('Phase 10 · automation rules as data', () => {
     expect(create.status).toBe(403);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 13 — Security hardening: CSV import validation + formula injection,
+// data export, account deletion (retention-safe purge + session revocation)
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 13 · CSV import security', () => {
+  it('rejects non-CSV extensions and binary payloads', async () => {
+    const { agent: a } = await signupFresh('Csv Reject', 'Csv Reject Org');
+    const csrf = await getCsrf(a);
+
+    // Executable payload spoofed as CSV: binary NUL bytes in the head.
+    const binary = Buffer.from([0x4d, 0x5a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    const exe = await a
+      .post('/api/leads/import')
+      .set('x-csrf-token', csrf)
+      .field('file', binary, { filename: 'malware.csv', contentType: 'text/csv' });
+    expect(exe.status).toBe(400);
+    expect(exe.body.error.message).toMatch(/not a valid CSV/i);
+
+    // Wrong extension entirely.
+    const txt = await a
+      .post('/api/leads/import')
+      .set('x-csrf-token', csrf)
+      .field('file', Buffer.from('Name,Phone\nA,1\n'), { filename: 'leads.exe', contentType: 'text/csv' });
+    expect(txt.status).toBe(400);
+    expect(txt.body.error.message).toMatch(/only \.csv or \.txt/i);
+  });
+
+  it('sanitises spreadsheet formula injection in free-text cells', async () => {
+    const { agent: a } = await signupFresh('Csv Formula', 'Csv Formula Org');
+    const csrf = await getCsrf(a);
+    const csv = 'Name,Company,Notes,Phone,Email\n"=HYPERLINK(""http://evil"")","+SUM(1,1)","@SUM(1,1)",+919811223344,=cmd@x.com\n';
+    const res = await a
+      .post('/api/leads/import')
+      .set('x-csrf-token', csrf)
+      .field('file', Buffer.from(csv), { filename: 'leads.csv', contentType: 'text/csv' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.created).toBe(1);
+    expect(res.body.data.skipped).toBe(0);
+
+    // The persisted lead must have formula prefixes neutralised — and the
+    // phone must survive intact (normalised to a 10-digit Indian number).
+    const list = await a.get('/api/leads');
+    const lead = list.body.data.rows.find((r: any) => r.phone === '9811223344');
+    expect(lead).toBeTruthy();
+    expect(lead.name.startsWith("'=")).toBe(true);
+    expect(lead.company.startsWith("'+")).toBe(true);
+    expect(lead.notes.startsWith("'@")).toBe(true);
+    expect(lead.phone).toBe('9811223344');
+  });
+});
+
+describe('Phase 13 · data export & account deletion', () => {
+  it('exports the full org dataset as JSON including leads and child rows', async () => {
+    const { agent: a, email, password } = await signupFresh('Export Me', 'Export Org');
+    await loginAs(a, email, password);
+    const csrf = await getCsrf(a);
+    await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Exportable Lead', phone: '9800000001' });
+
+    const exportRes = await a.get('/api/account/export');
+    expect(exportRes.status).toBe(200);
+    expect(exportRes.headers['content-type']).toContain('application/json');
+    expect(exportRes.headers['content-disposition']).toContain('primelead-export');
+    const parsed = JSON.parse(exportRes.text);
+    expect(parsed.data.organization.name).toBe('Export Org');
+    expect(parsed.data.lead.some((l: any) => l.name === 'Exportable Lead')).toBe(true);
+    expect(Array.isArray(parsed.data.quotationItem)).toBe(true);
+  });
+
+  it('requires explicit confirmation before deleting the workspace', async () => {
+    const { agent: a } = await signupFresh('No Delete', 'No Delete Org');
+    const csrf = await getCsrf(a);
+    const denied = await a.post('/api/account/delete').set('x-csrf-token', csrf).send({ confirm: 'nope' });
+    expect(denied.status).toBe(400);
+
+    const ok2 = await a.post('/api/account/delete').set('x-csrf-token', csrf).send({ confirm: 'DELETE' });
+    expect(ok2.status).toBe(200);
+    expect(ok2.body.data.deleted).toBe(true);
+  });
+
+  it('purges org data and revokes sessions after deletion (login fails after)', async () => {
+    const { agent: a, email, password } = await signupFresh('Purge Org', 'Purge Org Co');
+    await loginAs(a, email, password);
+    const csrf = await getCsrf(a);
+    await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Doomed Lead', phone: '9800000002' });
+
+    const del = await a.post('/api/account/delete').set('x-csrf-token', csrf).send({ confirm: 'DELETE' });
+    expect(del.status).toBe(200);
+
+    // Session cookie revoked server-side: the same agent can no longer auth.
+    const me = await a.get('/api/auth/me');
+    expect(me.status).toBe(401);
+
+    // Login with the same credentials fails — the user row is gone.
+    const fresh = request.agent(server);
+    const c = await getCsrf(fresh);
+    const relogin = await fresh.post('/api/auth/login').set('x-csrf-token', c).send({ email, password });
+    expect(relogin.status).toBe(401);
+
+    // And an org B that signs up afterwards is fully isolated (no leaked rows).
+    const { agent: b } = await signupFresh('Isolated After Purge', 'Purge Neighbour');
+    const list = await b.get('/api/leads');
+    expect(list.body.data.rows.every((r: any) => r.name !== 'Doomed Lead')).toBe(true);
+  });
+});
