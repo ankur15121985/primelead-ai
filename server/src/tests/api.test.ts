@@ -2453,3 +2453,138 @@ describe('Phase 7 · Meta Lead Ads adapter', () => {
     expect(denied.status).toBe(403);
   });
 });
+// ────────────────────────────────────────────────────────────────────────
+// Phase 9 — AI engine: lead intelligence, usage ledger & budget
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 9 · lead intelligence (rule fallback when no AI key)', () => {
+  it('summarizes, scores and suggests a next action for a lead', async () => {
+    const { agent: a } = await signupFresh('Ai Owner', 'Ai Org');
+    const csrf = await getCsrf(a);
+    const created = await a.post('/api/leads').set('x-csrf-token', csrf).send({
+      name: 'AI Prospect',
+      phone: '9810009090',
+      email: 'prospect@example.com',
+      priority: 'HIGH',
+      expectedValue: 200000,
+      notes: 'Wants a full website revamp.',
+      source: 'WEBSITE',
+    });
+    const leadId = created.body.data.lead.id;
+
+    // summary — rule source (no key configured)
+    const summary = await a.post(`/api/ai/lead/${leadId}/summary`).set('x-csrf-token', csrf).send({});
+    expect(summary.status).toBe(200);
+    expect(summary.body.data.enabled).toBe(true);
+    expect(summary.body.data.source).toBe('rules');
+    expect(summary.body.data.summary).toContain('AI Prospect');
+    expect(summary.body.data.summary).toContain('₹2,00,000');
+
+    // score — same heuristic as the stored score
+    const score = await a.post(`/api/ai/lead/${leadId}/score`).set('x-csrf-token', csrf).send({});
+    expect(score.status).toBe(200);
+    expect(score.body.data.source).toBe('rules');
+    expect(score.body.data.score).toBeGreaterThanOrEqual(50);
+    expect(score.body.data.reasoning).toContain('high priority');
+
+    // next action — never-contacted lead gets a first-outreach suggestion
+    const action = await a.post(`/api/ai/lead/${leadId}/next-action`).set('x-csrf-token', csrf).send({});
+    expect(action.status).toBe(200);
+    expect(action.body.data.source).toBe('rules');
+    expect(action.body.data.action).toContain('never been contacted');
+    expect(action.body.data.createdTaskId).toBeNull(); // SUGGEST mode never writes
+  });
+
+  it('AUTOMATIC mode lets the next action create the follow-up task; OFF disables everything', async () => {
+    const { agent: a } = await signupFresh('Ai Mode Owner', 'Ai Mode Org');
+    const csrf = await getCsrf(a);
+    const created = await a.post('/api/leads').set('x-csrf-token', csrf).send({
+      name: 'Auto Lead',
+      phone: '9811110101',
+      source: 'MANUAL',
+    });
+    const leadId = created.body.data.lead.id;
+
+    // switch to AUTOMATIC (manager-gated)
+    const setMode = await a.patch('/api/ai/settings').set('x-csrf-token', csrf).send({ mode: 'AUTOMATIC' });
+    expect(setMode.status).toBe(200);
+    expect(setMode.body.data.mode).toBe('AUTOMATIC');
+
+    const action = await a.post(`/api/ai/lead/${leadId}/next-action`).set('x-csrf-token', csrf).send({});
+    expect(action.status).toBe(200);
+    expect(action.body.data.createdTaskId).toBeTruthy();
+
+    const tasks = await a.get('/api/tasks?view=all');
+    expect(tasks.body.data.tasks.some((t: any) => t.title.includes('Auto Lead'))).toBe(true);
+
+    // OFF mode: everything disabled, nothing generated
+    await a.patch('/api/ai/settings').set('x-csrf-token', await getCsrf(a)).send({ mode: 'OFF' });
+    const offSummary = await a.post(`/api/ai/lead/${leadId}/summary`).set('x-csrf-token', await getCsrf(a)).send({});
+    expect(offSummary.body.data.enabled).toBe(false);
+    expect(offSummary.body.data.mode).toBe('OFF');
+    expect(offSummary.body.data.summary).toBeNull();
+  });
+
+  it('enforces the org AI budget before any generation', async () => {
+    const { agent: a } = await signupFresh('Ai Budget Owner', 'Ai Budget Org');
+    const { prisma } = await import('../lib/prisma');
+    const csrf = await getCsrf(a);
+    const me = await a.get('/api/auth/me');
+    const orgId = me.body.data.org.id;
+
+    // set a tiny budget (₹1) and record ₹5 of usage for this month
+    await a.patch('/api/ai/settings').set('x-csrf-token', csrf).send({ monthlyLimitRupees: 1 });
+    await prisma.aiUsage.create({
+      data: { orgId, category: 'OTHER', totalTokens: 1000, costEstimatePaise: 500 }, // ₹5 > ₹1
+    });
+
+    const created = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'Budget Lead', phone: '9812220202' });
+    const res = await a.post(`/api/ai/lead/${created.body.data.lead.id}/summary`).set('x-csrf-token', await getCsrf(a)).send({});
+    expect(res.status).toBe(429);
+    expect(res.body.error.code).toBe('AI_BUDGET_EXCEEDED');
+    expect(res.body.error.message).toContain('budget');
+  });
+
+  it('reports usage stats and settings with a budget meter', async () => {
+    const { agent: a } = await signupFresh('Ai Usage Owner', 'Ai Usage Org');
+    const csrf = await getCsrf(a);
+    const created = await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Stats Lead', phone: '9813330303' });
+    const leadId = created.body.data.lead.id;
+
+    // rule-based calls record no usage rows (no provider call happened)
+    await a.post(`/api/ai/lead/${leadId}/score`).set('x-csrf-token', csrf).send({});
+
+    const usage = await a.get('/api/ai/usage');
+    expect(usage.status).toBe(200);
+    expect(usage.body.data.budget.monthlyLimitRupees).toBeGreaterThan(0);
+    expect(usage.body.data.stats.calls).toBeGreaterThanOrEqual(0);
+
+    const settings = await a.get('/api/ai/settings');
+    expect(settings.status).toBe(200);
+    expect(['OFF', 'SUGGEST', 'AUTOMATIC']).toContain(settings.body.data.mode);
+    expect(settings.body.data.budget.spentRupees).toBeGreaterThanOrEqual(0);
+  });
+
+  it('keeps lead intelligence org-scoped and sales-scoped', async () => {
+    const { agent: a } = await signupFresh('Ai Iso A', 'Ai Iso Org A');
+    const { agent: b } = await signupFresh('Ai Iso B', 'Ai Iso Org B');
+    const csrf = await getCsrf(a);
+    const created = await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Isolated Lead', phone: '9814440404' });
+    const leadId = created.body.data.lead.id;
+
+    // another org cannot read it
+    const cross = await b.post(`/api/ai/lead/${leadId}/summary`).set('x-csrf-token', await getCsrf(b)).send({});
+    expect(cross.status).toBe(404);
+
+    // a salesperson who doesn't own it cannot read it either
+    const { agent: owner } = await signupFresh('Ai Sales Boss', 'Ai Sales Org');
+    const salesEmail = 'aisales@test.com';
+    await owner.post('/api/team').set('x-csrf-token', await getCsrf(owner)).send({
+      name: 'Ai Sales', email: salesEmail, role: 'SALES', password: 'StrongPass123',
+    });
+    const sales = request.agent(server);
+    await loginAs(sales, salesEmail, 'StrongPass123');
+    const denied = await sales.post(`/api/ai/lead/${leadId}/summary`).set('x-csrf-token', await getCsrf(sales)).send({});
+    expect(denied.status).toBe(404);
+  });
+});

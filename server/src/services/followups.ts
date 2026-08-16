@@ -22,9 +22,9 @@ export interface CreateFollowUpInput {
   actorId?: string;
 }
 
-export async function createFollowUp(input: CreateFollowUpInput): Promise<void> {
+export async function createFollowUp(input: CreateFollowUpInput): Promise<{ id: string }> {
   const kind = input.kind || 'FOLLOW_UP';
-  await prisma.task.create({
+  const task = await prisma.task.create({
     data: {
       orgId: input.orgId,
       leadId: input.leadId || null,
@@ -36,6 +36,7 @@ export async function createFollowUp(input: CreateFollowUpInput): Promise<void> 
       dueAt: input.dueAt,
       notes: input.notes,
     },
+    select: { id: true },
   });
   // Reflect the next follow-up on the lead for dashboard filtering.
   if (input.leadId) {
@@ -61,6 +62,7 @@ export async function createFollowUp(input: CreateFollowUpInput): Promise<void> 
       metadata: { dueAt: input.dueAt.toISOString() },
     },
   });
+  return { id: task.id };
 }
 
 export async function completeFollowUp(taskId: string, orgId: string, actorId: string): Promise<void> {

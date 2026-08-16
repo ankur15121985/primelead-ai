@@ -4,9 +4,11 @@ import { asyncHandler, badRequest, ok, validate } from '../lib/http';
 import { requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth';
 import { writeFollowUp, isAiReady } from '../services/ai-followup';
 import { generateAssistantReply } from '../services/ai-chat';
-import { aiFollowUpSchema, aiChatSchema } from '../validators/schemas';
+import { summarizeLead, scoreLead, nextBestAction } from '../services/ai-features';
+import { getAiUsageStats, getAiBudget, getAiSpendThisMonth } from '../services/ai-usage';
+import { aiFollowUpSchema, aiChatSchema, aiSettingsSchema } from '../validators/schemas';
 import { sourceLabel } from '../constants';
-import { getOrgSetting } from '../services/assignment';
+import { getOrgSetting, setOrgSetting } from '../services/assignment';
 import { paiseToRupees } from '../lib/money';
 
 const router = Router();
@@ -74,6 +76,88 @@ router.post(
       user.orgId
     );
     return ok(res, result);
+  })
+);
+
+// ── Lead intelligence ────────────────────────────────────────────
+router.post(
+  '/lead/:id/summary',
+  requireAuth,
+  requirePermission('ai.use'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    return ok(res, await summarizeLead(user.orgId, req.params.id, user.role, user.id));
+  })
+);
+
+router.post(
+  '/lead/:id/score',
+  requireAuth,
+  requirePermission('ai.use'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    return ok(res, await scoreLead(user.orgId, req.params.id, user.role, user.id));
+  })
+);
+
+router.post(
+  '/lead/:id/next-action',
+  requireAuth,
+  requirePermission('ai.use'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    return ok(res, await nextBestAction(user.orgId, req.params.id, user.role, user.id));
+  })
+);
+
+// ── AI usage & settings ──────────────────────────────────────────
+router.get(
+  '/usage',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const [stats, budget, spent] = await Promise.all([
+      getAiUsageStats(user.orgId),
+      getAiBudget(user.orgId),
+      getAiSpendThisMonth(user.orgId),
+    ]);
+    return ok(res, { stats, budget: { ...budget, spentRupees: spent } });
+  })
+);
+
+router.get(
+  '/settings',
+  requireAuth,
+  requirePermission('ai.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const [modeSetting, budget] = await Promise.all([getOrgSetting(user.orgId, 'aiMode'), getAiBudget(user.orgId)]);
+    return ok(res, {
+      mode: (modeSetting as any)?.mode || 'SUGGEST',
+      budget: { ...budget, spentRupees: await getAiSpendThisMonth(user.orgId) },
+    });
+  })
+);
+
+router.patch(
+  '/settings',
+  requireAuth,
+  requirePermission('ai.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const input = validate(aiSettingsSchema, req.body);
+    if (input.mode) {
+      await setOrgSetting(user.orgId, 'aiMode', { mode: input.mode });
+    }
+    if (input.monthlyLimitRupees !== undefined) {
+      await setOrgSetting(user.orgId, 'aiBudget', { monthlyLimitRupees: input.monthlyLimitRupees });
+    }
+    const [modeSetting, budget] = await Promise.all([getOrgSetting(user.orgId, 'aiMode'), getAiBudget(user.orgId)]);
+    return ok(res, {
+      saved: true,
+      mode: (modeSetting as any)?.mode || 'SUGGEST',
+      budget: { ...budget, spentRupees: await getAiSpendThisMonth(user.orgId) },
+    });
   })
 );
 

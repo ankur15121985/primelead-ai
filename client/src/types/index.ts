@@ -418,6 +418,35 @@ export interface AiConversation {
   preview: string;
 }
 
+export interface AiLeadInsight {
+  enabled: boolean;
+  mode: string;
+  source: 'ai' | 'rules';
+  summary?: string | null;
+  score?: number | null;
+  reasoning?: string | null;
+  baseScore?: number | null;
+  action?: string | null;
+  createdTaskId?: string | null;
+}
+
+export interface AiUsageStats {
+  calls: number;
+  totalTokens: number;
+  spentRupees: number;
+  byCategory: Array<{ category: string; calls: number; tokens: number; spentRupees: number }>;
+}
+
+export interface AiUsageResponse {
+  stats: AiUsageStats;
+  budget: { monthlyLimitRupees: number; enabled: boolean; spentRupees: number };
+}
+
+export interface AiSettings {
+  mode: 'OFF' | 'SUGGEST' | 'AUTOMATIC';
+  budget: { monthlyLimitRupees: number; enabled: boolean; spentRupees: number };
+}
+
 export interface AiConversationDetail {
   id: string;
   messages: Array<{ id: string; role: string; content: string; createdAt: string }>;

@@ -274,6 +274,11 @@ export const aiChatSchema = z.object({
   conversationId: z.string().optional().nullable(),
 });
 
+export const aiSettingsSchema = z.object({
+  mode: z.enum(['OFF', 'SUGGEST', 'AUTOMATIC']).optional(),
+  monthlyLimitRupees: z.coerce.number().int().min(0).max(100_000_000).optional(),
+});
+
 // ── Integrations ───────────────────────────────────────────────
 export const integrationUpdateSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),

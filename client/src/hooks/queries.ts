@@ -3,10 +3,10 @@ import { api, download } from '@/lib/api';
 import type {
   AdminOrg, AdminOrgDetail, AdminOverview, AdminSystem, AiConversation, AiConversationDetail,
   BillingData, Contact, ConversationDetail, ConversationListResponse, CreditNote, DashboardData,
-  DebitNote, GstSettings, Integration, IntegrationCatalogItem, IntegrationLogsResponse, Invoice,
-  Lead, LeadDetail, LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta,
-  QrCode, QrDetail, Quotation, Reconciliation, ReportData, Task, UpgradeResult, User,
-  WaSettings, WaTemplate,
+  AiLeadInsight, AiSettings, AiUsageResponse, DebitNote, GstSettings, Integration,
+  IntegrationCatalogItem, IntegrationLogsResponse, Invoice, Lead, LeadDetail, LeadListResponse,
+  Notification, Pipeline, PipelineStage, PublicQrMeta, QrCode, QrDetail, Quotation,
+  Reconciliation, ReportData, Task, UpgradeResult, User, WaSettings, WaTemplate,
 } from '@/types';
 
 /** All TanStack Query hooks for the app. */
@@ -641,6 +641,43 @@ export function useAiConversation(id: string) {
     queryFn: () => api<{ conversation: AiConversationDetail }>(`/ai/conversations/${id}`),
     enabled: Boolean(id),
     staleTime: 10_000,
+  });
+}
+
+// ── AI lead intelligence ───────────────────────────────────────
+export function useLeadInsight(kind: 'summary' | 'score' | 'next-action') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (leadId: string) => api<AiLeadInsight>(`/ai/lead/${leadId}/${kind}`, { body: {} }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ai-usage'] }),
+  });
+}
+
+export function useAiUsage() {
+  return useQuery({
+    queryKey: ['ai-usage'],
+    queryFn: () => api<AiUsageResponse>('/ai/usage'),
+    staleTime: 15_000,
+  });
+}
+
+export function useAiSettings() {
+  return useQuery({
+    queryKey: ['ai-settings'],
+    queryFn: () => api<AiSettings>('/ai/settings'),
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateAiSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { mode?: string; monthlyLimitRupees?: number }) =>
+      api<AiSettings>('/ai/settings', { method: 'PATCH', body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ai-settings'] });
+      qc.invalidateQueries({ queryKey: ['ai-usage'] });
+    },
   });
 }
 

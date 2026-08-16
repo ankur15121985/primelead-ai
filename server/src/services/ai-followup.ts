@@ -8,6 +8,7 @@
  */
 import { getAiProvider } from '../ai/provider';
 import type { ChatMessage } from '../ai/provider';
+import { recordAiUsage } from './ai-usage';
 
 export type Tone = 'professional' | 'friendly' | 'short' | 'persuasive';
 export type Language = 'english' | 'hindi' | 'hinglish';
@@ -87,7 +88,15 @@ NEXT OBJECTIVE: ${ctx.objective}
 IMPORTANT: Use the customer's name naturally. Keep it under 120 words.`,
   };
 
-  const message = await provider.generateText([system, user], { temperature: 0.7, maxTokens: 350 });
+  const result = await provider.generateText([system, user], { temperature: 0.7, maxTokens: 350 });
+  const message = result.text;
+  await recordAiUsage({
+    orgId: orgId || '',
+    category: 'FOLLOW_UP',
+    provider: provider.name,
+    model: provider.model || null,
+    usage: result.usage,
+  });
   const subject =
     ctx.channel === 'email'
       ? `Following up — ${ctx.customerName}`.slice(0, 60)

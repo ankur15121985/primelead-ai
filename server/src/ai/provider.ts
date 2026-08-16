@@ -23,25 +23,40 @@ export interface GenerateOptions {
   maxTokens?: number;
 }
 
+export interface TokenUsage {
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
+}
+
+export interface AiResult {
+  text: string;
+  usage?: TokenUsage;
+}
+
 export interface AiProvider {
   readonly name: string;
-  generateText(messages: ChatMessage[], opts?: GenerateOptions): Promise<string>;
+  /** Provider info used for usage accounting — the org's effective model. */
+  readonly model?: string;
+  generateText(messages: ChatMessage[], opts?: GenerateOptions): Promise<AiResult>;
 }
 
 /** OpenAI-compatible chat completions (also covers Gemini's and most self-hosted endpoints). */
 class OpenAICompatibleProvider implements AiProvider {
   readonly name = 'openai-compatible';
+  readonly model: string;
   private readonly baseUrl: string;
   private readonly apiKey: string;
-  private readonly model: string;
 
   constructor(apiKey: string, baseUrl: string, model: string) {
     this.apiKey = apiKey;
     this.model = model;
     this.baseUrl = (baseUrl || 'https://api.openai.com/v1').replace(/\/$/, '');
+    this.model = model;
   }
 
-  async generateText(messages: ChatMessage[], opts: GenerateOptions = {}): Promise<string> {
+  async generateText(messages: ChatMessage[], opts: GenerateOptions = {}): Promise<AiResult> {
+    const started = Date.now();
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -59,10 +74,22 @@ class OpenAICompatibleProvider implements AiProvider {
       const text = await res.text().catch(() => '');
       throw new Error(`AI provider error (${res.status}): ${text.slice(0, 300)}`);
     }
-    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const json = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
+    };
     const content = json.choices?.[0]?.message?.content?.trim();
     if (!content) throw new Error('AI provider returned an empty response.');
-    return content;
+    return {
+      text: content,
+      usage: json.usage
+        ? {
+            promptTokens: json.usage.prompt_tokens,
+            completionTokens: json.usage.completion_tokens,
+            totalTokens: json.usage.total_tokens,
+          }
+        : undefined,
+    };
   }
 }
 

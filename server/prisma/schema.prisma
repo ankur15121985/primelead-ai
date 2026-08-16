@@ -49,6 +49,7 @@ model Organization {
   campaigns    Campaign[]
   notifications Notification[]
   aiConversations AiConversation[]
+  aiUsage      AiUsage[]
   auditLogs    AuditLog[]
   subscription Subscription?
   payments     Payment[]
@@ -670,6 +671,29 @@ model AiMessage {
   role           String // user | assistant
   content        String
   createdAt      DateTime      @default(now())
+}
+
+/**
+ * AI usage ledger (spec §23) — every provider call is recorded so orgs can
+ * see spend and budgets can be enforced. Tokens + estimated cost in paise.
+ */
+model AiUsage {
+  id                String       @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId            String?
+  provider          String       @default("openai-compatible")
+  model             String?
+  category          String // FOLLOW_UP | CHAT | LEAD_SUMMARY | LEAD_SCORE | NEXT_ACTION | OTHER
+  promptTokens      Int          @default(0)
+  completionTokens  Int          @default(0)
+  totalTokens       Int          @default(0)
+  costEstimatePaise Int          @default(0)
+  latencyMs         Int?         @default(0)
+  createdAt         DateTime     @default(now())
+
+  @@index([orgId, createdAt])
+  @@index([orgId, category])
 }
 
 // ────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@
  */
 import { prisma } from '../lib/prisma';
 import { getAiProvider } from '../ai/provider';
+import { recordAiUsage } from './ai-usage';
 import { OPEN_STATUSES } from '../constants';
 import { sourceLabel } from '../constants';
 import { paiseToRupees } from '../lib/money';
@@ -167,5 +168,16 @@ export async function generateAssistantReply(ctx: ChatContext, question: string)
       'Suggest the next best action when useful.',
   };
   const user: ChatMessage = { role: 'user', content: snapshot };
-  return provider.generateText([system, user], { temperature: 0.5, maxTokens: 500 });
+  const started = Date.now();
+  const result = await provider.generateText([system, user], { temperature: 0.5, maxTokens: 500 });
+  await recordAiUsage({
+    orgId: ctx.orgId,
+    userId: ctx.userId,
+    category: 'CHAT',
+    provider: provider.name,
+    model: provider.model || null,
+    usage: result.usage,
+    latencyMs: Date.now() - started,
+  });
+  return result.text;
 }
