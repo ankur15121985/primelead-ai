@@ -2873,3 +2873,66 @@ describe('Phase 13 · data export & account deletion', () => {
     expect(list.body.data.rows.every((r: any) => r.name !== 'Doomed Lead')).toBe(true);
   });
 });
+// ────────────────────────────────────────────────────────────────────────
+// Phase 14 — Security hardening tests: mass assignment, hardened headers
+// (rate limiting + CORS live in security.test.ts with isolated env).
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 14 · mass assignment & hardening headers', () => {
+  it('ignores forged tenant/identity fields in the create payload', async () => {
+    const { agent: a } = await signupFresh('Mass Assign', 'Mass Co');
+    const { agent: b } = await signupFresh('Other Tenant', 'Other Co');
+
+    // The other org's id, a forged lead id, and fake identity fields —
+    // none of these may influence where or how the lead is stored.
+    const otherMe = await b.get('/api/auth/me');
+    const otherOrgId = otherMe.body.data.org.id;
+
+    const csrf = await getCsrf(a);
+    const res = await a
+      .post('/api/leads')
+      .set('x-csrf-token', csrf)
+      .send({
+        name: 'Forged Lead',
+        phone: '9811111111',
+        orgId: otherOrgId,
+        id: 'forged-lead-id',
+        createdAt: '2001-01-01',
+        deletedAt: new Date().toISOString(),
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.data.lead.id).not.toBe('forged-lead-id');
+
+    // The lead landed in the caller's org, not the forged one.
+    const mine = await a.get('/api/leads');
+    expect(mine.body.data.rows.some((r: any) => r.name === 'Forged Lead')).toBe(true);
+
+    const theirs = await b.get('/api/leads');
+    expect(theirs.body.data.rows.every((r: any) => r.name !== 'Forged Lead')).toBe(true);
+
+    // createdAt from the payload was not honoured (server timestamps rule).
+    expect(res.body.data.lead.createdAt).not.toBe('2001-01-01');
+
+    // A forged ownerId from outside the org is rejected outright (the route
+    // guards assignments to the caller's team — stronger than ignoring it).
+    const forgedOwner = await a
+      .post('/api/leads')
+      .set('x-csrf-token', csrf)
+      .send({ name: 'Forged Owner Lead', phone: '9811111112', ownerId: 'forged-owner-id' });
+    expect(forgedOwner.status).toBe(400);
+    expect(forgedOwner.body.error.message).toMatch(/not part of your team/i);
+  });
+
+  it('sends hardening headers and standard error bodies on app responses', async () => {
+    const res = await request(server).get('/api/auth/me');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['x-frame-options']).toBeTruthy();
+    expect(res.headers['referrer-policy']).toBeTruthy();
+
+    // Unknown route → JSON error contract, not HTML.
+    const nf = await request(server).get('/api/not-a-real-route');
+    expect(nf.status).toBe(404);
+    expect(nf.body.error.requestId).toBeTruthy();
+    expect(nf.body.error.code).toBeTruthy();
+  });
+});
