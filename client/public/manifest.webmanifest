@@ -1,0 +1,19 @@
+{
+  "name": "PRIMELEAD AI — CRM for Indian Agencies",
+  "short_name": "PRIMELEAD",
+  "description": "Manage WhatsApp leads, follow-ups, quotations and GST billing in one place.",
+  "start_url": "/app/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
