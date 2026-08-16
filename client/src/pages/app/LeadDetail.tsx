@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Phone, MessageCircle, Mail, StickyNote, CalendarClock, Sparkles, Send, RefreshCw,
-  UserCircle2, Tag, Building2, IndianRupee, Gauge, ChevronDown, CheckCircle2, Target, Pencil, Copy, Check,
+  UserCircle2, Tag, Building2, IndianRupee, Gauge, ChevronDown, CheckCircle2, XCircle, Target, Pencil, Copy, Check,
 } from 'lucide-react';
 import { useLead, useAddActivity, useAddFollowUp, useUpdateLead, useAiFollowUp, useTeam } from '@/hooks/queries';
 import { useToast } from '@/hooks/use-toast';
@@ -97,9 +97,12 @@ function LeadBody({ lead }: { lead: LeadDetailType }) {
     }
   };
 
-  const changeStage = async (stageId: string, status: string) => {
+  const changeStage = async (stageId: string, reason?: string, outcome?: 'won' | 'lost') => {
     try {
-      await updateLead.mutateAsync({ stageId, status });
+      await updateLead.mutateAsync({
+        stageId,
+        ...(outcome === 'won' ? { wonReason: reason } : outcome === 'lost' ? { lostReason: reason } : {}),
+      });
       success('Stage updated');
     } catch (err) {
       error('Could not move lead', friendlyError(err));
@@ -128,6 +131,8 @@ function LeadBody({ lead }: { lead: LeadDetailType }) {
             <h1 className="text-2xl font-bold tracking-tight">{lead.name}</h1>
             <StatusBadge status={lead.status} />
             <PriorityBadge priority={lead.priority} />
+            {lead.wonReason && <Badge tone="success">Won: {lead.wonReason}</Badge>}
+            {lead.lostReason && <Badge tone="danger">Lost: {lead.lostReason}</Badge>}
           </div>
           <p className="text-sm text-muted-foreground">
             {lead.company || 'Individual'} · {sourceLabel(lead.source)}
@@ -206,7 +211,8 @@ function LeadBody({ lead }: { lead: LeadDetailType }) {
               <DetailRow icon={IndianRupee} label="Expected value" value={formatINR(lead.expectedValue)} />
               <DetailRow icon={Gauge} label="Lead score" value={`${lead.score}/100`} />
               <DetailRow icon={CalendarClock} label="Last contacted" value={formatDate(lead.lastContactedAt)} />
-              <DetailRow icon={Target} label="Next follow-up" value={lead.nextFollowUpAt ? formatDateTime(lead.nextFollowUpAt) : '—'} />
+              <DetailRow icon={CalendarClock} label="Next follow-up" value={lead.nextFollowUpAt ? formatDateTime(lead.nextFollowUpAt) : '—'} />
+              <DetailRow icon={Target} label="Expected close" value={lead.expectedCloseAt ? formatDate(lead.expectedCloseAt) : '—'} />
             </CardContent>
           </Card>
 
@@ -299,17 +305,31 @@ function DetailRow({ icon: Icon, label, value, href }: { icon: typeof Phone; lab
   );
 }
 
-function StagePicker({ lead, onChange }: { lead: LeadDetailType; onChange: (stageId: string, status: string) => void }) {
+function StagePicker({ lead, onChange }: { lead: LeadDetailType; onChange: (stageId: string, reason?: string, outcome?: 'won' | 'lost') => void }) {
   const { data: pipeline } = usePipelineForStages();
   const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<PipelineStage | null>(null);
+  const [reason, setReason] = useState('');
   const stages = pipeline?.stages || [];
-  const STATUS_FOR_STAGE = (name: string) => {
-    const map: Record<string, string> = {
-      New: 'NEW', Contacted: 'CONTACTED', Qualified: 'QUALIFIED', Proposal: 'PROPOSAL',
-      Negotiation: 'NEGOTIATION', Won: 'WON', Lost: 'LOST',
-    };
-    return map[name] || 'NEW';
+
+  const pick = (s: PipelineStage) => {
+    // Terminal stages ask for a reason first.
+    if (s.isWon || s.isLost) {
+      setPending(s);
+      setReason('');
+    } else {
+      onChange(s.id);
+      setOpen(false);
+    }
   };
+
+  const confirm = () => {
+    if (!pending) return;
+    onChange(pending.id, reason.trim() || undefined, pending.isWon ? 'won' : 'lost');
+    setPending(null);
+    setOpen(false);
+  };
+
   return (
     <div className="relative">
       <button
@@ -323,14 +343,31 @@ function StagePicker({ lead, onChange }: { lead: LeadDetailType; onChange: (stag
           {stages.map((s) => (
             <button
               key={s.id}
-              onClick={() => { onChange(s.id, STATUS_FOR_STAGE(s.name)); setOpen(false); }}
+              onClick={() => pick(s)}
               className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm hover:bg-accent"
             >
               <span className="h-3 w-3 rounded-full" style={{ background: s.color }} />
               <span className={cn('font-medium', lead.stageId === s.id && 'text-primary')}>{s.name}</span>
-              {lead.stageId === s.id && <CheckCircle2 className="ml-auto h-4 w-4 text-primary" />}
+              {s.isWon && <CheckCircle2 className="ml-auto h-4 w-4 text-success" />}
+              {s.isLost && <XCircle className="ml-auto h-4 w-4 text-destructive" />}
+              {lead.stageId === s.id && !s.isWon && !s.isLost && <CheckCircle2 className="ml-auto h-4 w-4 text-primary" />}
             </button>
           ))}
+        </div>
+      )}
+      {pending && (
+        <div className="mt-2 rounded-lg border bg-background p-3 shadow-xl animate-scale-in">
+          <p className="text-xs font-semibold">{pending.isWon ? 'Mark as won' : 'Mark as lost'} — {pending.name}</p>
+          <Input
+            className="mt-2"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder={pending.isWon ? 'What won the deal? (optional)' : 'Why was it lost? (optional)'}
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setPending(null)}>Cancel</Button>
+            <Button size="sm" onClick={confirm}><CheckCircle2 className="h-3.5 w-3.5" /> Confirm</Button>
+          </div>
         </div>
       )}
     </div>
@@ -392,12 +429,14 @@ function EditDialog({ open, onOpenChange, lead, onSave }: { open: boolean; onOpe
   const [form, setForm] = useState(() => ({
     name: lead.name, phone: lead.phone || '', email: lead.email || '', company: lead.company || '',
     priority: lead.priority, expectedValue: String(lead.expectedValue || ''), notes: lead.notes || '',
+    expectedCloseAt: lead.expectedCloseAt ? new Date(lead.expectedCloseAt).toISOString().slice(0, 16) : '',
   }));
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave({
       name: form.name, phone: form.phone || null, email: form.email || null, company: form.company || null,
       priority: form.priority, expectedValue: Number(form.expectedValue) || 0, notes: form.notes || null,
+      expectedCloseAt: form.expectedCloseAt ? new Date(form.expectedCloseAt).toISOString() : null,
     });
   };
   return (
@@ -416,6 +455,7 @@ function EditDialog({ open, onOpenChange, lead, onSave }: { open: boolean; onOpe
               </Select>
             </div>
             <div className="space-y-1.5"><Label>Expected value (₹)</Label><Input type="number" min={0} value={form.expectedValue} onChange={(e) => setForm({ ...form, expectedValue: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Expected close date</Label><Input type="datetime-local" value={form.expectedCloseAt} onChange={(e) => setForm({ ...form, expectedCloseAt: e.target.value })} /></div>
           </div>
           <div className="space-y-1.5"><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           <div className="flex justify-end gap-2">

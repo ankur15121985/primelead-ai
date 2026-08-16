@@ -138,6 +138,9 @@ model Lead {
   customFields   Json? // Record<string, string>
   lastContactedAt DateTime?
   nextFollowUpAt DateTime?
+  expectedCloseAt DateTime?
+  wonReason      String?
+  lostReason     String?
   deletedAt      DateTime?
 
   activities Activity[]
@@ -184,9 +187,11 @@ model Pipeline {
   orgId     String
   org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   name      String       @default("Sales Pipeline")
-  isDefault Boolean      @default(true)
+  isDefault Boolean      @default(false)
   stages    PipelineStage[]
   createdAt DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 model PipelineStage {
@@ -199,6 +204,8 @@ model PipelineStage {
   color      String    @default("#64748b")
   isWon      Boolean   @default(false)
   isLost     Boolean   @default(false)
+  // 0–100 — used for the weighted pipeline forecast.
+  probability Int      @default(0)
   leads      Lead[]
   createdAt  DateTime  @default(now())
 
@@ -241,6 +248,10 @@ model Task {
   kind             String       @default("FOLLOW_UP") // FOLLOW_UP | CALL | WHATSAPP | EMAIL | MEETING | TASK
   dueAt            DateTime
   status           String       @default("PENDING") // PENDING | DONE | MISSED | CANCELLED
+  priority         String       @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+  // Recurring follow-ups: when set, completing this task schedules the next
+  // occurrence this many days later (same title/kind/notes/priority).
+  repeatEveryDays  Int?
   notes            String?
   completedAt      DateTime?
   overdueNotifiedAt DateTime?

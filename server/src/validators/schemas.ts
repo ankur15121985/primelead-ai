@@ -59,6 +59,9 @@ export const leadCreateSchema = z.object({
   status: z.enum(statusValues as [string, ...string[]]).optional(),
   stageId: z.string().optional().nullable(),
   nextFollowUpAt: z.string().datetime().optional().nullable(),
+  expectedCloseAt: z.string().datetime().optional().nullable(),
+  wonReason: z.string().trim().max(300).optional().nullable(),
+  lostReason: z.string().trim().max(300).optional().nullable(),
 });
 
 export const leadUpdateSchema = leadCreateSchema.partial();
@@ -82,6 +85,8 @@ export const taskCreateSchema = z.object({
   userId: z.string().optional(),
   title: z.string().trim().min(1, 'Task title is required').max(200),
   kind: z.enum(taskKindValues as [string, ...string[]]).optional(),
+  priority: z.enum(priorityValues as [string, ...string[]]).optional(),
+  repeatEveryDays: z.coerce.number().int().min(1).max(365).optional().nullable(),
   dueAt: z.string().datetime('Pick a valid date and time'),
   notes: z.string().max(2000).optional().nullable(),
 });
@@ -89,6 +94,8 @@ export const taskCreateSchema = z.object({
 export const taskUpdateSchema = z.object({
   status: z.enum(['PENDING', 'DONE', 'CANCELLED']).optional(),
   title: z.string().trim().min(1).max(200).optional(),
+  priority: z.enum(priorityValues as [string, ...string[]]).optional(),
+  repeatEveryDays: z.coerce.number().int().min(1).max(365).optional().nullable(),
   dueAt: z.string().datetime().optional(),
   notes: z.string().max(2000).optional().nullable(),
 });

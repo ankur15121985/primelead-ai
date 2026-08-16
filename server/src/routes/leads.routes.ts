@@ -348,11 +348,42 @@ router.patch(
     if (input.tags !== undefined) data.tags = (input.tags as any) || undefined;
     if (input.customFields !== undefined) data.customFields = (input.customFields as any) || undefined;
     if (input.nextFollowUpAt !== undefined) data.nextFollowUpAt = input.nextFollowUpAt ? new Date(input.nextFollowUpAt) : null;
+    if (input.expectedCloseAt !== undefined) data.expectedCloseAt = input.expectedCloseAt ? new Date(input.expectedCloseAt) : null;
     if (input.stageId !== undefined) { data.stageId = input.stageId || null; }
+    if (input.wonReason !== undefined) data.wonReason = input.wonReason || null;
+    if (input.lostReason !== undefined) data.lostReason = input.lostReason || null;
 
     // stage/status change → activity
-    const stageChanged = input.stageId && input.stageId !== existing.stageId;
-    const statusChanged = input.status && input.status !== existing.status;
+    const stageChanged = input.stageId !== undefined && input.stageId !== existing.stageId;
+
+    // When the stage changes, the stage itself defines the status
+    // (won/lost flags) — custom pipelines can't rely on name→status maps.
+    let newStage: { id: string; name: string; color: string; isWon: boolean; isLost: boolean; probability: number } | null = null;
+    let stageDerivedStatus: string | null = null;
+    if (input.stageId) {
+      newStage = await prisma.pipelineStage.findFirst({
+        where: { id: input.stageId, orgId: user.orgId },
+        select: { id: true, name: true, color: true, isWon: true, isLost: true, probability: true },
+      });
+      if (!newStage) throw badRequest('That pipeline stage does not exist.');
+      if (newStage.isWon) stageDerivedStatus = 'WON';
+      else if (newStage.isLost) stageDerivedStatus = 'LOST';
+    }
+
+    const statusChanged = Boolean(input.status && input.status !== existing.status);
+    if (input.status !== undefined) data.status = input.status;
+    else if (stageDerivedStatus) data.status = stageDerivedStatus;
+    // Moving a won/lost deal back to an open stage reopens it.
+    else if (stageChanged && (existing.status === 'WON' || existing.status === 'LOST')) data.status = 'NEW';
+
+    // Leaving a won/lost stage clears the reason; arriving at one keeps the reason.
+    if (stageChanged) {
+      const leavingTerminal = existing.status === 'WON' || existing.status === 'LOST';
+      if (leavingTerminal && !stageDerivedStatus) {
+        data.wonReason = null;
+        data.lostReason = null;
+      }
+    }
 
     // owner change → activity + notification
     if (input.ownerId !== undefined && input.ownerId !== existing.ownerId) {
@@ -370,8 +401,6 @@ router.patch(
       activityNotes.push('Owner updated');
     }
 
-    if (input.status !== undefined) data.status = input.status;
-
     // Recompute score (thresholds are in rupees)
     const nextScore = computeLeadScore({
       priority: (input.priority as any) || existing.priority,
@@ -388,9 +417,12 @@ router.patch(
     });
 
     if (stageChanged || statusChanged) {
-      const newStage = input.stageId ? await prisma.pipelineStage.findFirst({ where: { id: input.stageId, orgId: user.orgId } }) : null;
-      const statusText = input.status ? `Status → ${input.status}` : '';
-      const stageText = newStage ? `Stage → ${newStage.name}` : '';
+      const oldStage = existing.stageId
+        ? await prisma.pipelineStage.findFirst({ where: { id: existing.stageId, orgId: user.orgId }, select: { id: true, name: true } })
+        : null;
+      const statusText = data.status && data.status !== existing.status ? `Status → ${data.status}` : '';
+      const stageText = newStage ? `Stage → ${newStage.name}` : oldStage ? `Stage: ${oldStage.name} → unassigned` : '';
+      const reasonText = data.wonReason ? ` · Won: ${data.wonReason}` : data.lostReason ? ` · Lost: ${data.lostReason}` : '';
       await prisma.activity.create({
         data: {
           orgId: user.orgId,
@@ -398,8 +430,17 @@ router.patch(
           userId: user.id,
           type: 'STATUS_CHANGE',
           title: 'Pipeline stage changed',
-          body: [statusText, stageText].filter(Boolean).join(' · '),
-          metadata: { status: input.status, stageId: input.stageId },
+          body: [statusText, stageText, reasonText].filter(Boolean).join(' · '),
+          metadata: {
+            status: data.status as string | null,
+            stageId: input.stageId,
+            fromStageId: existing.stageId,
+            fromStage: oldStage?.name,
+            toStage: newStage?.name,
+            probability: newStage?.probability,
+            wonReason: (data.wonReason as string | null) || null,
+            lostReason: (data.lostReason as string | null) || null,
+          },
         },
       });
     }
@@ -487,6 +528,8 @@ router.post(
       userId: input.userId || user.id,
       title: input.title,
       kind: (input.kind as any) || 'FOLLOW_UP',
+      priority: (input.priority as any) || 'MEDIUM',
+      repeatEveryDays: (input.repeatEveryDays as number | null | undefined) ?? null,
       dueAt: new Date(input.dueAt),
       notes: input.notes || undefined,
       actorId: user.id,

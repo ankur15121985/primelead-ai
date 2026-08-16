@@ -97,6 +97,9 @@ export interface Lead {
   owner: LeadOwner | null;
   lastContactedAt: string | null;
   nextFollowUpAt: string | null;
+  expectedCloseAt: string | null;
+  wonReason: string | null;
+  lostReason: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -118,6 +121,8 @@ export interface Task {
   kind: string;
   dueAt: string;
   status: string;
+  priority: string;
+  repeatEveryDays: number | null;
   notes: string | null;
   leadId: string | null;
   lead: { id: string; name: string; phone: string | null } | null;
@@ -134,7 +139,17 @@ export interface PipelineStage {
   color: string;
   isWon: boolean;
   isLost: boolean;
+  probability: number;
+  value: number;
+  weightedValue: number;
   leads: Lead[];
+}
+
+export interface Pipeline {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  stageCount?: number;
 }
 
 export interface Notification {

@@ -214,6 +214,13 @@ npm run db:seed             # reset demo data (idempotent)
 - `routes/teams.routes.ts` — team CRUD (`teams.manage`). Deleting a team unassigns members (keeps them).
 - `User.teamId` is org-validated in `routes/team.routes.ts` — you can never attach a member to another org's team.
 
+### Pipeline & follow-ups (Phase 3)
+- **Multi-pipeline:** `routes/pipeline.routes.ts` — orgs can hold many pipelines (one default). `GET /pipeline?pipelineId=` resolves an explicit id, else the default (or first). Pipeline create/rename/delete + set-default are manager-only (`pipeline.edit` + `assertManagerOrAbove`); the default pipeline can't be deleted; deleting a pipeline/stage **unassigns** its leads (never deletes them).
+- **Stage probability & forecast:** `PipelineStage.probability` (0–100). The board returns per-stage `value` + `weightedValue` (₹) and an overall `forecast` (sum of weighted open-stage value).
+- **Win/lost lifecycle:** stage flags (`isWon`/`isLost`) **derive the lead status server-side** — the client only sends `stageId`. Moving to a terminal stage stores `wonReason`/`lostReason`; moving back to an open stage reopens the deal (status `NEW`) and clears the reason. `Lead.expectedCloseAt` is a plain date field. Stage changes log `STATUS_CHANGE` activities with `fromStage → toStage`, probability and reason metadata.
+- **Follow-up engine** (`services/followups.ts`): `Task.priority` (LOW…URGENT) and `Task.repeatEveryDays` (recurring). Completing a recurring task **auto-spawns the next occurrence** (same title/kind/priority, due + N days) and advances the lead's `nextFollowUpAt` pointer to the earliest remaining pending task. `PATCH /tasks/:id` with `status: DONE` routes through `completeFollowUp` so the spawn always happens — never bypass it with a raw update.
+- **Snooze/reschedule:** clients reschedule by PATCHing `dueAt` (the Tasks UI snoozes +1 day). Reopening sets `status: PENDING`.
+
 ### Contacts & Calendar
 - Contacts: simple org-scoped CRUD (`routes/contacts.routes.ts`), lead links validated org-side.
 - Calendar is a client month-grid over `GET /api/tasks?view=all` (added to `tasks.routes.ts`).

@@ -156,7 +156,7 @@ Deduplicates by normalized phone/email (`409 CONFLICT` on duplicates), computes 
 Full detail incl. `activities` (50), `tasks`, `quotations`, `invoices`, `owner`, `stage`. → `200 { data: { lead } }`
 
 ### `PATCH /leads/:id`
-Any subset of the create fields, plus `ownerId` and `stageId`. Stage/status changes log a `STATUS_CHANGE` activity; owner changes log `ASSIGNMENT` + notify. Score recomputed. → `200 { data: { lead } }`
+Any subset of the create fields, plus `ownerId`, `stageId`, `expectedCloseAt`, `wonReason`, `lostReason`. **Moving to a stage derives the status from the stage's won/lost flags** — no client-side status mapping needed for custom pipelines. Moving a won/lost deal back to an open stage reopens it (status `NEW`) and clears the reason. Stage changes log a `STATUS_CHANGE` activity with `fromStage → toStage` + probability + reason metadata; owner changes log `ASSIGNMENT` + notify. Score recomputed. → `200 { data: { lead } }`
 
 ### `DELETE /leads/:id` (manager+) — soft delete → `200 { data: { deleted: true } }`
 
@@ -179,7 +179,7 @@ Call/WhatsApp/Email/Meeting also update `lastContactedAt`. → `201 { data: { ac
 
 ### `POST /leads/:id/tasks`
 ```json
-{ "title": "Call about quotation", "kind": "CALL|WHATSAPP|EMAIL|MEETING|FOLLOW_UP|TASK", "dueAt": "ISO datetime", "notes"?, "userId"? }
+{ "title": "Call about quotation", "kind": "CALL|WHATSAPP|EMAIL|MEETING|FOLLOW_UP|TASK", "priority"?, "repeatEveryDays"?, "dueAt": "ISO datetime", "notes"?, "userId"? }
 ```
 Creates a follow-up + activity + sets the lead's `nextFollowUpAt`. → `201`
 
@@ -189,19 +189,28 @@ Creates a follow-up + activity + sets the lead's `nextFollowUpAt`. → `201`
 
 ## Pipeline
 
-### `GET /pipeline` → `200 { data: { stages: [{ id, name, order, color, isWon, isLost, leads: [...] }], pipeline } }`
-### `POST /pipeline/stages` (manager+) `{ "name", "color"? }` → `201`
+### `GET /pipeline?pipelineId=` → `200 { data: { stages, pipeline, pipelines, forecast } }`
+Board for the org's default pipeline (or the selected one). Each stage carries `probability` (0–100), `value` and `weightedValue` (₹); `forecast` is the sum of open stages' weighted value; `pipelines` lists every org pipeline for the switcher.
+### `POST /pipeline` (manager+) `{ "name", "stages"?: [{ name, color?, isWon?, isLost?, probability? }] }` → `201`
+Creates a pipeline (first one becomes the default) with optional initial stages.
+### `PATCH /pipeline/:pipelineId` (manager+) `{ "name"?, "isDefault"? }` → `200`
+Rename or promote to default (only one default per org).
+### `DELETE /pipeline/:pipelineId` (manager+) → `200`
+Deletes a non-default pipeline; its leads are unassigned from its stages, never deleted.
+### `POST /pipeline/stages` (manager+) `{ "name", "color"?, "probability"?, "isWon"?, "isLost"?, "pipelineId"? }` → `201`
+### `PATCH /pipeline/stages/:id` (manager+) `{ "name"?, "color"?, "probability"?, "isWon"?, "isLost"? }` → `200`
+### `DELETE /pipeline/stages/:id` (manager+) → `200`
+Deletes a stage; its leads keep their data and become unassigned from that stage.
 ### `POST /pipeline/stages/reorder` (manager+) `{ "ids": [...] }` → `200`
 
 ---
 
-## Tasks / Follow-ups
-
-### `GET /tasks?view=today|overdue|upcoming|done|missed`
+## Tasks / Follow-ups### `GET /tasks?view=today|overdue|upcoming|done|missed|all`
 Also syncs overdue tasks (PENDING→MISSED) and raises notifications. → `200 { data: { tasks, counts } }`
-
-### `POST /tasks` `{ "leadId"?, "userId"?, "title", "kind"?, "dueAt", "notes"? }` → `201`
-### `PATCH /tasks/:id` `{ "status": "PENDING|DONE|CANCELLED", "title"?, "dueAt"?, "notes"? }` → `200`
+### `POST /tasks` `{ "leadId"?, "userId"?, "title", "kind"?, "priority"?, "repeatEveryDays"?, "dueAt", "notes"? }` → `201`
+`repeatEveryDays` (1–365) makes the follow-up recurring: completing it auto-schedules the next occurrence.
+### `PATCH /tasks/:id` `{ "status": "PENDING|DONE|CANCELLED", "title"?, "priority"?, "repeatEveryDays"?, "dueAt"?, "notes"? }` → `200`
+`status: DONE` routes through the follow-up engine (recurring spawn + lead `nextFollowUpAt` pointer advance). Rescheduling `dueAt` is how clients snooze.
 ### `DELETE /tasks/:id` → `200`
 ### `POST /tasks/sync` → `200 { data: { missed, notified } }`
 

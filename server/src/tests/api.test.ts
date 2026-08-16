@@ -1328,3 +1328,241 @@ describe('Phase 2 · plan-driven usage limits', () => {
     expect(growth.leadLimit).toBe(25000);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 3 — Pipeline (multi-pipeline, stages, probability, win/lost) + Follow-ups
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 3 · pipeline management', () => {
+  it('creates custom pipelines and lists them on the board', async () => {
+    const { agent: a } = await signupFresh('Pipeline Owner', 'Pipeline Org');
+
+    const board = await a.get('/api/pipeline');
+    expect(board.status).toBe(200);
+    expect(board.body.data.pipeline.isDefault).toBe(true);
+    expect(board.body.data.stages.length).toBe(7);
+    expect(board.body.data.pipelines.length).toBe(1);
+
+    const created = await a.post('/api/pipeline').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Web Development',
+      stages: [
+        { name: 'Enquiry', probability: 10 },
+        { name: 'Proposal', probability: 40 },
+        { name: 'Signed', isWon: true, probability: 100 },
+      ],
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data.pipeline.isDefault).toBe(false);
+
+    const board2 = await a.get('/api/pipeline');
+    expect(board2.body.data.pipelines.length).toBe(2);
+    expect(board2.body.data.pipeline.isDefault).toBe(true); // default unchanged
+
+    // switch to the new pipeline via ?pipelineId=
+    const web = await a.get(`/api/pipeline?pipelineId=${created.body.data.pipeline.id}`);
+    expect(web.status).toBe(200);
+    expect(web.body.data.stages.map((s: any) => s.name)).toEqual(['Enquiry', 'Proposal', 'Signed']);
+    expect(web.body.data.stages[0].probability).toBe(10);
+    expect(web.body.data.stages[2].isWon).toBe(true);
+  });
+
+  it('rejects pipeline/stage mutations from salespeople', async () => {
+    const { agent: a, email, password } = await signupFresh('P3 Manager', 'P3 Org');
+    const csrf = await getCsrf(a);
+    const invite = await a.post('/api/team').set('x-csrf-token', csrf).send({
+      name: 'P3 Sales', email: 'p3sales@test.com', role: 'SALES', password: 'StrongPass123',
+    });
+    expect(invite.status).toBe(201);
+
+    // log the salesperson in on their own agent
+    const s = request.agent(server);
+    await s.post('/api/auth/login').set('x-csrf-token', await getCsrf(s)).send({ email: 'p3sales@test.com', password: 'StrongPass123' });
+
+    const blocked = await s.post('/api/pipeline').set('x-csrf-token', await getCsrf(s)).send({ name: 'Nope' });
+    expect(blocked.status).toBe(403);
+
+    const board = await a.get('/api/pipeline');
+    const stageId = board.body.data.stages[0].id;
+    const stageBlocked = await s.patch(`/api/pipeline/stages/${stageId}`).set('x-csrf-token', await getCsrf(s)).send({ name: 'Hacked' });
+    expect(stageBlocked.status).toBe(403);
+    void email; void password;
+  });
+
+  it('edits stage probability and deletes a stage without deleting its leads', async () => {
+    const { agent: a } = await signupFresh('Stage Owner', 'Stage Org');
+    const board = await a.get('/api/pipeline');
+    const stageId = board.body.data.stages[0].id;
+
+    const updated = await a.patch(`/api/pipeline/stages/${stageId}`).set('x-csrf-token', await getCsrf(a)).send({ name: 'Fresh Enquiry', probability: 25 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.stage.probability).toBe(25);
+
+    // add a lead on that stage, then delete the stage
+    const lead = await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'Stage Lead', phone: '9822000000', stageId });
+    expect(lead.status).toBe(201);
+
+    const removed = await a.delete(`/api/pipeline/stages/${stageId}`).set('x-csrf-token', await getCsrf(a));
+    expect(removed.status).toBe(200);
+
+    const list = await a.get('/api/leads');
+    const stillThere = list.body.data.rows.find((r: any) => r.name === 'Stage Lead');
+    expect(stillThere).toBeTruthy();
+    expect(stillThere.stageId).toBeNull();
+  });
+
+  it('computes the weighted forecast from stage probability', async () => {
+    const { agent: a } = await signupFresh('Forecast Owner', 'Forecast Org');
+    const board = await a.get('/api/pipeline');
+    const qualified = board.body.data.stages.find((s: any) => s.name === 'Qualified');
+    expect(qualified).toBeTruthy();
+
+    // put a ₹1,00,000 lead on the 0% stage, then bump probability to 50
+    await a.post('/api/leads').set('x-csrf-token', await getCsrf(a)).send({ name: 'Big Pipe', phone: '9833000000', stageId: qualified.id, expectedValue: 100000 });
+
+    await a.patch(`/api/pipeline/stages/${qualified.id}`).set('x-csrf-token', await getCsrf(a)).send({ probability: 50 });
+
+    const board2 = await a.get('/api/pipeline');
+    const q2 = board2.body.data.stages.find((s: any) => s.name === 'Qualified');
+    expect(q2.value).toBe(100000);
+    expect(q2.weightedValue).toBe(50000);
+    expect(board2.body.data.forecast).toBeGreaterThanOrEqual(50000);
+  });
+});
+
+describe('Phase 3 · win/lost lifecycle', () => {
+  it('derives WON/LOST from stage flags and stores reasons', async () => {
+    const { agent: a } = await signupFresh('Win Owner', 'Win Org');
+    const csrf = await getCsrf(a);
+    const board = await a.get('/api/pipeline');
+    const wonStage = board.body.data.stages.find((s: any) => s.name === 'Won');
+    const lostStage = board.body.data.stages.find((s: any) => s.name === 'Lost');
+    const newStage = board.body.data.stages.find((s: any) => s.name === 'New');
+
+    const lead = await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Deal Lead', phone: '9844000000', expectedValue: 250000 });
+    expect(lead.status).toBe(201);
+    expect(lead.body.data.lead.status).toBe('NEW');
+
+    // move to Won — status flips automatically, reason stored, no client status needed
+    const won = await a.patch(`/api/leads/${lead.body.data.lead.id}`).set('x-csrf-token', csrf).send({ stageId: wonStage.id, wonReason: 'Best pricing and fast delivery' });
+    expect(won.status).toBe(200);
+    expect(won.body.data.lead.status).toBe('WON');
+    expect(won.body.data.lead.wonReason).toBe('Best pricing and fast delivery');
+    expect(won.body.data.lead.stageId).toBe(wonStage.id);
+
+    // moving out of Won clears the reason and reopens the deal
+    const reopened = await a.patch(`/api/leads/${lead.body.data.lead.id}`).set('x-csrf-token', csrf).send({ stageId: newStage.id });
+    expect(reopened.body.data.lead.status).toBe('NEW');
+    expect(reopened.body.data.lead.wonReason).toBeNull();
+
+    // move to Lost — reason stored
+    const lost = await a.patch(`/api/leads/${lead.body.data.lead.id}`).set('x-csrf-token', csrf).send({ stageId: lostStage.id, lostReason: 'Went with a competitor' });
+    expect(lost.body.data.lead.status).toBe('LOST');
+    expect(lost.body.data.lead.lostReason).toBe('Went with a competitor');
+
+    // stage changes are logged with from → to metadata
+    const detail = await a.get(`/api/leads/${lead.body.data.lead.id}`);
+    const moves = detail.body.data.lead.activities.filter((x: any) => x.type === 'STATUS_CHANGE');
+    expect(moves.length).toBeGreaterThanOrEqual(3);
+    const lastMove = moves[0];
+    expect(lastMove.metadata.toStage).toBe('Lost');
+    expect(lastMove.metadata.fromStage).toBe('New');
+  });
+
+  it('stores expected close date on the lead', async () => {
+    const { agent: a } = await signupFresh('Close Owner', 'Close Org');
+    const csrf = await getCsrf(a);
+    const lead = await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Closing Lead', phone: '9855000000' });
+    const closeAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const updated = await a.patch(`/api/leads/${lead.body.data.lead.id}`).set('x-csrf-token', csrf).send({ expectedCloseAt: closeAt });
+    expect(updated.status).toBe(200);
+    expect(new Date(updated.body.data.lead.expectedCloseAt).toISOString()).toBe(closeAt);
+  });
+});
+
+describe('Phase 3 · follow-up engine', () => {
+  it('creates follow-ups with priority and recurrence', async () => {
+    const { agent: a } = await signupFresh('Task Owner', 'Task Org');
+    const csrf = await getCsrf(a);
+    const lead = await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Task Lead', phone: '9866000000' });
+    const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    const created = await a.post('/api/tasks').set('x-csrf-token', csrf).send({
+      title: 'Weekly check-in', kind: 'CALL', priority: 'HIGH', repeatEveryDays: 7, dueAt,
+    });
+    expect(created.status).toBe(201);
+
+    const list = await a.get('/api/tasks?view=all');
+    const task = list.body.data.tasks.find((t: any) => t.title === 'Weekly check-in');
+    expect(task).toBeTruthy();
+    expect(task.priority).toBe('HIGH');
+    expect(task.repeatEveryDays).toBe(7);
+
+    void lead;
+  });
+
+  it('auto-schedules the next occurrence when a recurring follow-up completes', async () => {
+    const { agent: a } = await signupFresh('Recur Owner', 'Recur Org');
+    const csrf = await getCsrf(a);
+    const lead = await a.post('/api/leads').set('x-csrf-token', csrf).send({ name: 'Recur Lead', phone: '9877000000' });
+    const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    await a.post('/api/tasks').set('x-csrf-token', csrf).send({
+      title: 'Monthly follow-up', kind: 'FOLLOW_UP', priority: 'MEDIUM', repeatEveryDays: 30, dueAt, leadId: lead.body.data.lead.id,
+    });
+
+    const list = await a.get('/api/tasks?view=all');
+    const task = list.body.data.tasks.find((t: any) => t.title === 'Monthly follow-up');
+    expect(task).toBeTruthy();
+
+    // complete it → a new occurrence is created 30 days later
+    const done = await a.patch(`/api/tasks/${task.id}`).set('x-csrf-token', csrf).send({ status: 'DONE' });
+    expect(done.status).toBe(200);
+
+    const after = await a.get('/api/tasks?view=all');
+    const next = after.body.data.tasks.find((t: any) => t.title === 'Monthly follow-up' && t.status === 'PENDING');
+    expect(next).toBeTruthy();
+    expect(next.repeatEveryDays).toBe(30);
+    const expectedNext = new Date(new Date(dueAt).getTime() + 30 * 24 * 60 * 60 * 1000);
+    expect(new Date(next.dueAt).getTime()).toBe(expectedNext.getTime());
+
+    const completed = after.body.data.tasks.find((t: any) => t.id === task.id);
+    expect(completed.status).toBe('DONE');
+
+    // lead's next-follow-up pointer was refreshed to the new occurrence
+    const leadDetail = await a.get(`/api/leads/${lead.body.data.lead.id}`);
+    expect(new Date(leadDetail.body.data.lead.nextFollowUpAt).getTime()).toBe(expectedNext.getTime());
+  });
+
+  it('does not duplicate non-recurring tasks on completion', async () => {
+    const { agent: a } = await signupFresh('Once Owner', 'Once Org');
+    const csrf = await getCsrf(a);
+    const dueAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await a.post('/api/tasks').set('x-csrf-token', csrf).send({ title: 'One-off call', kind: 'CALL', dueAt });
+
+    const list = await a.get('/api/tasks?view=all');
+    const task = list.body.data.tasks.find((t: any) => t.title === 'One-off call');
+    await a.patch(`/api/tasks/${task.id}`).set('x-csrf-token', csrf).send({ status: 'DONE' });
+
+    const after = await a.get('/api/tasks?view=all');
+    const oneOffs = after.body.data.tasks.filter((t: any) => t.title === 'One-off call');
+    expect(oneOffs.length).toBe(1);
+    expect(oneOffs[0].status).toBe('DONE');
+  });
+
+  it('supports snoozing by rescheduling the due date', async () => {
+    const { agent: a } = await signupFresh('Snooze Owner', 'Snooze Org');
+    const csrf = await getCsrf(a);
+    const dueAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    await a.post('/api/tasks').set('x-csrf-token', csrf).send({ title: 'Snooze me', kind: 'FOLLOW_UP', dueAt });
+
+    const list = await a.get('/api/tasks?view=all');
+    const task = list.body.data.tasks.find((t: any) => t.title === 'Snooze me');
+    const tomorrow = new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString();
+    const snoozed = await a.patch(`/api/tasks/${task.id}`).set('x-csrf-token', csrf).send({ dueAt: tomorrow });
+    expect(snoozed.status).toBe(200);
+
+    const after = await a.get('/api/tasks?view=all');
+    const moved = after.body.data.tasks.find((t: any) => t.id === task.id);
+    expect(new Date(moved.dueAt).toISOString()).toBe(tomorrow);
+  });
+});

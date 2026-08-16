@@ -31,8 +31,9 @@ This is an **original product** (demo brand "PRIMELEAD AI") inspired by the *cat
 | Leads — table (search/filter/sort/pagination), bulk assign/status/tag/delete, CSV import/export, duplicate detection, lead scoring | ✅ |
 | Lead detail — timeline, call/WhatsApp/email actions, notes, stage & owner change, follow-up scheduling | ✅ |
 | Automatic assignment — least-open-leads + round-robin + per-source rules | ✅ |
-| Sales pipeline — Kanban with drag & drop, stage changes logged | ✅ |
-| Follow-up engine — overdue/today/upcoming/missed views, overdue sync + notifications, **Calendar view** | ✅ |
+| Sales pipeline — Kanban with drag & drop, **multiple pipelines per org**, stage CRUD with **win probability + weighted forecast**, stage changes logged with from→to history | ✅ |
+| Win/lost tracking — status derived from won/lost stages, optional won/lost reasons, reopen on move back, expected close date | ✅ |
+| Follow-up engine — overdue/today/upcoming/missed views, overdue sync + notifications, **priority**, **recurring follow-ups** (auto-spawn next on completion), snooze/reschedule, **Calendar view** | ✅ |
 | Dashboard — stat cards, funnel, source/owner charts, 14-day trend, today's & overdue follow-ups, top salespeople | ✅ |
 | AI follow-up writer — provider abstraction (OpenAI-compatible), tones + English/Hindi/Hinglish | ✅ |
 | **AI CRM assistant** — conversational chat that answers from *your* org's live data (leads, sources, follow-ups, revenue), org-scoped, SALES sees own leads only | ✅ |
@@ -47,7 +48,7 @@ This is an **original product** (demo brand "PRIMELEAD AI") inspired by the *cat
 | **Usage limits** — Plan-table-driven caps (users/leads, 0 = unlimited) enforced at the service layer across manual, QR, webhook and invite entry points | ✅ |
 | **Contacts** — customer directory with search, tags, lead links | ✅ |
 | **Super-admin console** (`/admin`) — platform overview, all organizations, user management, suspend/activate + plan changes, system diagnostics + live error feed (gated by `SUPER_ADMIN_EMAILS`) | ✅ |
-| Automated tests (**71 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, **plus MFA, sessions, account lock, RBAC, teams, request-ids, paise money** | ✅ |
+| Automated tests (**90 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, MFA, sessions, account lock, RBAC, teams, request-ids, paise money, **plus Phase 3: multi-pipeline, stage probability/forecast, win/lost lifecycle, recurring follow-ups** | ✅ |
 | **Money in paise** — integer paise everywhere (leads, quotations, invoices, billing), exact GST arithmetic, converted to rupees only at the API/UI boundary | ✅ |
 | **Free tools** — QR Code Generator, GST Invoice Generator (lead magnets, no signup required) | ✅ |
 
@@ -135,7 +136,7 @@ Or click **Start Free** and run the onboarding wizard — it can seed realistic 
 npm run dev           # API + web together
 npm run dev:server    # API only
 npm run dev:client    # web only
-npm test              # server unit + API tests (71)
+npm test              # server unit + API tests (90)
 npm run typecheck     # server + client TypeScript checks
 npm run build         # production builds
 npm run db:seed       # reset/seed demo data

@@ -15,6 +15,8 @@ export interface CreateFollowUpInput {
   userId: string;
   title: string;
   kind?: TaskKind;
+  priority?: string;
+  repeatEveryDays?: number | null;
   dueAt: Date;
   notes?: string;
   actorId?: string;
@@ -29,6 +31,8 @@ export async function createFollowUp(input: CreateFollowUpInput): Promise<void> 
       userId: input.userId,
       title: input.title,
       kind,
+      priority: input.priority || 'MEDIUM',
+      repeatEveryDays: input.repeatEveryDays || null,
       dueAt: input.dueAt,
       notes: input.notes,
     },
@@ -62,6 +66,26 @@ export async function createFollowUp(input: CreateFollowUpInput): Promise<void> 
 export async function completeFollowUp(taskId: string, orgId: string, actorId: string): Promise<void> {
   const task = await prisma.task.findFirst({ where: { id: taskId, orgId } });
   if (!task) throw Object.assign(new Error('Task not found'), { status: 404 });
+
+  // Recurring follow-up: completing it schedules the next occurrence.
+  let nextDueAt: Date | null = null;
+  if (task.repeatEveryDays) {
+    nextDueAt = new Date(task.dueAt.getTime() + task.repeatEveryDays * 24 * 60 * 60 * 1000);
+    await prisma.task.create({
+      data: {
+        orgId,
+        leadId: task.leadId,
+        userId: task.userId,
+        title: task.title,
+        kind: task.kind,
+        priority: task.priority,
+        repeatEveryDays: task.repeatEveryDays,
+        dueAt: nextDueAt,
+        notes: task.notes,
+      },
+    });
+  }
+
   await prisma.task.update({
     where: { id: taskId },
     data: { status: 'DONE', completedAt: new Date() },
@@ -72,10 +96,33 @@ export async function completeFollowUp(taskId: string, orgId: string, actorId: s
       leadId: task.leadId,
       userId: actorId,
       type: 'FOLLOW_UP',
-      title: 'Follow-up completed',
-      body: task.title,
+      title: nextDueAt ? 'Recurring follow-up completed' : 'Follow-up completed',
+      body: nextDueAt
+        ? `${task.title} — next one scheduled for ${nextDueAt.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+        : task.title,
+      metadata: nextDueAt ? { nextDueAt: nextDueAt.toISOString(), repeatEveryDays: task.repeatEveryDays } : undefined,
     },
   });
+
+  // If the completed task was the lead's current next follow-up, advance the
+  // pointer to the earliest remaining pending task (usually the new occurrence).
+  if (task.leadId) {
+    const lead = await prisma.lead.findFirst({
+      where: { id: task.leadId, orgId },
+      select: { nextFollowUpAt: true },
+    });
+    if (lead && lead.nextFollowUpAt && task.dueAt.getTime() <= lead.nextFollowUpAt.getTime()) {
+      const nextTask = await prisma.task.findFirst({
+        where: { orgId, leadId: task.leadId, status: 'PENDING' },
+        orderBy: { dueAt: 'asc' },
+        select: { dueAt: true },
+      });
+      await prisma.lead.update({
+        where: { id: task.leadId },
+        data: { nextFollowUpAt: nextTask?.dueAt ?? null },
+      });
+    }
+  }
 }
 
 export interface OverdueResult {

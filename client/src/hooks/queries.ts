@@ -3,7 +3,7 @@ import { api, download } from '@/lib/api';
 import type {
   AdminOrg, AdminOrgDetail, AdminOverview, AdminSystem, AiConversation, AiConversationDetail,
   BillingData, Contact, DashboardData, Integration, IntegrationCatalogItem, Invoice, Lead, LeadDetail,
-  LeadListResponse, Notification, PipelineStage, PublicQrMeta, QrCode, QrDetail, Quotation,
+  LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta, QrCode, QrDetail, Quotation,
   ReportData, Task, UpgradeResult, User,
 } from '@/types';
 
@@ -91,8 +91,13 @@ export function useUpdateLead(id?: string) {
 export function useMoveLead() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { id: string; stageId: string; status: string }) =>
-      api(`/leads/${input.id}`, { method: 'PATCH', body: { stageId: input.stageId, status: input.status } }),
+    // The server derives WON/LOST from the stage's own flags, so we only
+    // send the stage — custom pipelines don't map to fixed statuses.
+    mutationFn: (input: { id: string; stageId: string; wonReason?: string; lostReason?: string }) =>
+      api(`/leads/${input.id}`, {
+        method: 'PATCH',
+        body: { stageId: input.stageId, wonReason: input.wonReason, lostReason: input.lostReason },
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leads'] });
       qc.invalidateQueries({ queryKey: ['pipeline'] });
@@ -135,11 +140,64 @@ export function useAddFollowUp(leadId: string) {
 }
 
 // ── Pipeline ──────────────────────────────────────────────
-export function usePipeline() {
+export function usePipeline(pipelineId?: string) {
+  const qs = pipelineId ? `?pipelineId=${pipelineId}` : '';
   return useQuery({
-    queryKey: ['pipeline'],
-    queryFn: () => api<{ stages: PipelineStage[]; pipeline: { id: string; name: string } | null }>('/pipeline'),
+    queryKey: ['pipeline', pipelineId || 'default'],
+    queryFn: () =>
+      api<{ stages: PipelineStage[]; pipeline: Pipeline | null; pipelines: Pipeline[]; forecast: number }>(`/pipeline${qs}`),
     staleTime: 10_000,
+  });
+}
+
+export function useCreatePipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Record<string, unknown>) => api<{ pipeline: Pipeline }>('/pipeline', { body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pipeline'] }),
+  });
+}
+
+export function useUpdatePipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; name?: string; isDefault?: boolean }) =>
+      api<{ pipeline: Pipeline }>(`/pipeline/${input.id}`, { method: 'PATCH', body: { name: input.name, isDefault: input.isDefault } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pipeline'] }),
+  });
+}
+
+export function useDeletePipeline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/pipeline/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pipeline'] }),
+  });
+}
+
+export function useCreateStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { pipelineId?: string; name: string; color?: string; probability?: number; isWon?: boolean; isLost?: boolean }) =>
+      api<{ stage: PipelineStage }>('/pipeline/stages', { body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pipeline'] }),
+  });
+}
+
+export function useUpdateStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; name?: string; color?: string; probability?: number; isWon?: boolean; isLost?: boolean }) =>
+      api<{ stage: PipelineStage }>(`/pipeline/stages/${input.id}`, { method: 'PATCH', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pipeline'] }),
+  });
+}
+
+export function useDeleteStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/pipeline/stages/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pipeline'] }),
   });
 }
 
@@ -153,10 +211,35 @@ export function useTasks(view: string) {
   });
 }
 
+export function useCreateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { title: string; kind?: string; priority?: string; repeatEveryDays?: number | null; dueAt: string; notes?: string; userId?: string; leadId?: string }) =>
+      api<{ created: boolean }>('/tasks', { body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
 export function useCompleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (taskId: string) => api(`/tasks/${taskId}`, { method: 'PATCH', body: { status: 'DONE' } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+/** Snooze (reschedule), reopen, or edit a follow-up. */
+export function useUpdateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; status?: string; dueAt?: string; priority?: string; repeatEveryDays?: number | null }) =>
+      api(`/tasks/${input.id}`, { method: 'PATCH', body: input }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });

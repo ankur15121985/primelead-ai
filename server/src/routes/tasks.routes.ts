@@ -72,6 +72,8 @@ router.post(
       userId: targetUserId,
       title: input.title,
       kind: (input.kind as any) || 'FOLLOW_UP',
+      priority: (input.priority as any) || 'MEDIUM',
+      repeatEveryDays: (input.repeatEveryDays as number | null | undefined) ?? null,
       dueAt: new Date(input.dueAt),
       notes: input.notes || undefined,
       actorId: user.id,
@@ -91,27 +93,28 @@ router.patch(
     const task = await prisma.task.findFirst({ where: { id: req.params.id, orgId: user.orgId } });
     if (!task) throw notFound('Task not found');
 
+    // Completion goes through the follow-up engine so recurring follow-ups
+    // spawn their next occurrence (and the lead's pointer stays in sync).
+    if (input.status === 'DONE') {
+      await completeFollowUp(task.id, user.orgId, user.id);
+      return ok(res, { updated: true });
+    }
+
     const data: Record<string, unknown> = {};
-    if (input.status === 'DONE') data.status = 'DONE', data.completedAt = new Date();
     if (input.status === 'CANCELLED') data.status = 'CANCELLED';
     if (input.status === 'PENDING') { data.status = 'PENDING'; data.completedAt = null; }
     if (input.title !== undefined) data.title = input.title;
     if (input.dueAt !== undefined) data.dueAt = new Date(input.dueAt);
+    if (input.priority !== undefined) data.priority = input.priority;
+    if (input.repeatEveryDays !== undefined) data.repeatEveryDays = input.repeatEveryDays || null;
     if (input.notes !== undefined) data.notes = input.notes;
 
-    await prisma.task.update({ where: { id: task.id }, data });
-    if (input.status === 'DONE' && task.leadId) {
-      await prisma.activity.create({
-        data: {
-          orgId: user.orgId,
-          leadId: task.leadId,
-          userId: user.id,
-          type: 'FOLLOW_UP',
-          title: 'Follow-up completed',
-          body: task.title,
-        },
-      });
+    // A recurring follow-up rescheduled from a missed state stays recurring.
+    if (task.repeatEveryDays && input.status === 'PENDING' && !data.repeatEveryDays) {
+      data.repeatEveryDays = task.repeatEveryDays;
     }
+
+    await prisma.task.update({ where: { id: task.id }, data });
     return ok(res, { updated: true });
   })
 );
