@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+server/prisma/dev.db
+server/prisma/*.db
+server/prisma/*.db-journal
+server/prisma/test*.db
+**/.env
+**/.env.local
+.git
+**/tsconfig.tsbuildinfo
+docs
+scripts
+*.log

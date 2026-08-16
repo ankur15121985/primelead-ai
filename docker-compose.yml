@@ -1,0 +1,46 @@
+# PRIMELEAD AI — single-container deployment.
+#
+#   docker compose up -d --build
+#
+# The image ships SQLite (zero-config, persistent via the volume below).
+# Moving to PostgreSQL: change the datasource provider in prisma/schema.prisma,
+# regenerate migrations, set DATABASE_URL to your Postgres DSN and add a db
+# service here — the schema is already Postgres-compatible (Int paise money,
+# String enums, orgId on every entity).
+services:
+  api:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      # ── Required in production ──
+      # Generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+      JWT_SECRET: "${JWT_SECRET:-change-me-before-production}"
+      # Comma-separated origins allowed by CORS (the deployed client origin).
+      CLIENT_ORIGIN: "${CLIENT_ORIGIN:-http://localhost:4000}"
+      # Comma-separated emails allowed to open /admin. Empty = admin area off.
+      SUPER_ADMIN_EMAILS: "${SUPER_ADMIN_EMAILS:-}"
+      # Must be true behind TLS (terminated by your proxy / load balancer).
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
+      # Public URL used in emails/links.
+      APP_URL: "${APP_URL:-http://localhost:4000}"
+      # ── Optional ──
+      # AI_PROVIDER / AI_API_KEY / AI_MODEL for the assistant & lead intelligence.
+      # RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET (or Stripe/Cashfree) for real payments.
+      # SMTP_HOST / SMTP_USER / SMTP_PASS / SMTP_FROM for transactional email.
+      PAYMENT_WEBHOOK_SECRET: "${PAYMENT_WEBHOOK_SECRET:-prod-payment-webhook-secret}"
+      TRIAL_DAYS: "${TRIAL_DAYS:-14}"
+    volumes:
+      # SQLite database — survives rebuilds/upgrades.
+      - primelead-data:/app/server/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  primelead-data:

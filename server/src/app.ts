@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -111,6 +113,16 @@ export function createApp() {
   app.use('/api/teams', teamsRoutes);
   app.use('/api/automations', automationRoutes);
   app.use('/api/account', accountRoutes);
+
+  // Production single-container mode: when the client has been built, serve its
+  // static assets from the API and fall back to index.html for client routes.
+  // In dev the Vite dev server serves the client, so this stays inert.
+  const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
+  if (fs.existsSync(path.join(clientDist, 'index.html'))) {
+    app.use(express.static(clientDist, { index: false, maxAge: '7d', immutable: false }));
+    // SPA fallback — only for non-/api GETs (HTML navigation deep links).
+    app.get(/^(?!\/api(?:\/|$)).*/, (_req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

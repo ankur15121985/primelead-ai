@@ -263,6 +263,11 @@ npm run db:seed             # reset demo data (idempotent)
 - **Dashboard:** `routes/dashboard.routes.ts` issues the trend (14 days × 2 counts), funnel, top-salespeople, recent lists and follow-ups as **one parallel `Promise.all`** — never add a serial `await` to that handler; add the query to the batch instead.
 - **Client code splitting:** `App.tsx` lazy-loads every page via the `lazyPage()` helper (`Suspense` + skeleton fallback wraps `<Routes>`). Layouts stay eager (the app shell). When adding a page: add a `lazyPage` import, keep the named export, and the build will emit its own chunk.
 
+### Production build & deployment (Phase 16)
+- **Build layout:** `server/tsconfig.json` uses `rootDir: src` → compiled output is `server/dist/index.js` (entry: `npm run start:prod -w server`). `prisma/seed.ts` and `vitest.config.ts` run via tsx/vitest and are deliberately excluded from the production bundle.
+- **Static serving:** `app.ts` mounts `express.static(client/dist)` + an SPA fallback **only when `client/dist/index.html` exists** — inert in dev (Vite serves the client) and in tests (they only hit `/api`). The fallback regex excludes `/api` so API 404s stay JSON with a requestId.
+- **Docker:** `Dockerfile` (deps → build → runtime; runtime keeps `node_modules` so `prisma migrate deploy` works) + `docker-compose.yml` (persistent SQLite volume, healthcheck). `CMD` runs `npx prisma migrate deploy && node dist/index.js` — migrations are idempotent, so every container start is safe. Full guide: `docs/DEPLOYMENT.md`.
+
 ### Data protection & upload hardening (Phase 13)
 - **File security:** `lib/file-security.ts` — CSV imports validate extension, MIME (header + sniffing) and magic bytes, and **neutralize OWASP spreadsheet formula injection** in free-text cells (a leading `=`, `+`, `-`, `@` is prefixed with `'`). Phone fields are deliberately exempt so `+91` numbers import untouched.
 - **Data export:** `GET /api/account/export` returns a GDPR-style JSON bundle of the entire org (leads, contacts, companies, deals, invoices, quotes, notes, tasks, activities, integrations, settings, usage) as an attachment.
