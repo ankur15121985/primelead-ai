@@ -258,6 +258,11 @@ npm run db:seed             # reset demo data (idempotent)
 - **Routes/UI:** `routes/automation.routes.ts` (CRUD + `/:id/run` + `/runs`, `automation.view|manage`) and `client/src/pages/app/Automations.tsx` (rule builder with trigger/condition/action pickers, enable toggle, run log).
 - **System-role sync:** `syncSystemRoles` (called at startup and org creation) refreshes built-in role permission rows to the code definitions, so new modules' permissions reach existing orgs without a migration. Custom roles are untouched.
 
+### Performance (Phase 15)
+- **Compression:** `app.use(compression())` in `app.ts` (after `requestId`) gzips all JSON API responses over the 1 KB threshold — verify with `curl -H 'Accept-Encoding: gzip'`. The dependency (`compression` + `@types/compression`) is hoisted to the workspace root.
+- **Dashboard:** `routes/dashboard.routes.ts` issues the trend (14 days × 2 counts), funnel, top-salespeople, recent lists and follow-ups as **one parallel `Promise.all`** — never add a serial `await` to that handler; add the query to the batch instead.
+- **Client code splitting:** `App.tsx` lazy-loads every page via the `lazyPage()` helper (`Suspense` + skeleton fallback wraps `<Routes>`). Layouts stay eager (the app shell). When adding a page: add a `lazyPage` import, keep the named export, and the build will emit its own chunk.
+
 ### Data protection & upload hardening (Phase 13)
 - **File security:** `lib/file-security.ts` — CSV imports validate extension, MIME (header + sniffing) and magic bytes, and **neutralize OWASP spreadsheet formula injection** in free-text cells (a leading `=`, `+`, `-`, `@` is prefixed with `'`). Phone fields are deliberately exempt so `+91` numbers import untouched.
 - **Data export:** `GET /api/account/export` returns a GDPR-style JSON bundle of the entire org (leads, contacts, companies, deals, invoices, quotes, notes, tasks, activities, integrations, settings, usage) as an attachment.

@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { config } from './config';
 import { apiLimiter } from './middleware/rate-limit';
@@ -58,6 +59,10 @@ export function createApp() {
   );
 
   app.use(requestId);
+
+  // gzip/deflate JSON API responses (biggest win for lead/dashboard payloads).
+  // Mounted before routes but after requestId so compressed bodies still carry it.
+  app.use(compression());
 
   // Webhooks that need the RAW body for HMAC signature verification are
   // mounted BEFORE express.json() parses (and consumes) the stream.

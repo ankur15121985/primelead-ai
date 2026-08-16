@@ -68,67 +68,91 @@ router.get(
       }))
       .sort((a, b) => b.count - a.count);
 
-    // Last 14 days of lead creation + won for revenue trend
-    const days: { date: string; label: string; leads: number; won: number }[] = [];
+    // Last 14 days of lead creation + won for revenue trend. Everything from
+    // here on (trend, funnel, top salespeople, recent lists, follow-ups) is
+    // independent — issue it as ONE parallel batch instead of serial round-trips.
+    const trendDays: { start: Date; end: Date; label: string }[] = [];
     for (let i = 13; i >= 0; i--) {
       const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-      const [leads, won] = await Promise.all([
-        prisma.lead.count({ where: { ...scope, deletedAt: null, createdAt: { gte: dayStart, lt: dayEnd } } as any }),
-        prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'WON', createdAt: { gte: dayStart, lt: dayEnd } } as any }),
-      ]);
-      days.push({ date: dayStart.toISOString().slice(0, 10), label: dayStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), leads, won });
+      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+      trendDays.push({ start, end, label: start.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) });
     }
 
-    // Conversion funnel
+    const [trend, funnelCounts, topSalespeople, recentLeads, recentActivity, todaysTasks, overdueTasks] =
+      await Promise.all([
+        Promise.all(
+          trendDays.flatMap((d) => [
+            prisma.lead.count({ where: { ...scope, deletedAt: null, createdAt: { gte: d.start, lt: d.end } } as any }),
+            prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'WON', createdAt: { gte: d.start, lt: d.end } } as any }),
+          ])
+        ),
+        // Conversion funnel (NEW/QUALIFIED/WON already counted above)
+        Promise.all([
+          prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'CONTACTED' } }),
+          prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'PROPOSAL' } }),
+          prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'NEGOTIATION' } }),
+        ]),
+        // Top salespeople by open leads + won value
+        Promise.all(
+          owners
+            .filter((o) => o.role === 'SALES')
+            .slice(0, 5)
+            .map(async (o) => {
+              const [open, won] = await Promise.all([
+                prisma.lead.count({ where: { orgId: user.orgId, ownerId: o.id, deletedAt: null, status: { in: OPEN_STATUSES } } }),
+                prisma.lead.aggregate({ where: { orgId: user.orgId, ownerId: o.id, deletedAt: null, status: 'WON' }, _sum: { expectedValue: true } }),
+              ]);
+              return { name: o.name, open, wonValue: paiseToRupees(won._sum.expectedValue || 0) };
+            })
+        ),
+        // Recent leads
+        prisma.lead.findMany({
+          where: { ...scope, deletedAt: null } as any,
+          orderBy: { createdAt: 'desc' },
+          take: 6,
+          include: { owner: { select: { name: true } } },
+        }),
+        // Recent activity
+        prisma.activity.findMany({
+          where: { orgId: user.orgId, ...(user.role === 'SALES' ? { userId: user.id } : {}) } as any,
+          orderBy: { createdAt: 'desc' },
+          take: 8,
+          include: { user: { select: { name: true } }, lead: { select: { name: true } } },
+        }),
+        // Today's follow-ups
+        prisma.task.findMany({
+          where: { orgId: user.orgId, status: 'PENDING', dueAt: { gte: startOfToday, lt: endOfToday }, ...(user.role === 'SALES' ? { userId: user.id } : {}) } as any,
+          orderBy: { dueAt: 'asc' },
+          include: { lead: { select: { id: true, name: true, phone: true } } },
+        }),
+        // Overdue follow-ups
+        prisma.task.findMany({
+          where: { orgId: user.orgId, status: 'MISSED', ...(user.role === 'SALES' ? { userId: user.id } : {}) } as any,
+          orderBy: { dueAt: 'asc' },
+          take: 10,
+          include: { lead: { select: { id: true, name: true, phone: true } } },
+        }),
+      ]);
+
+    const days = trendDays.map((d, i) => ({
+      date: d.start.toISOString().slice(0, 10),
+      label: d.label,
+      leads: trend[i * 2],
+      won: trend[i * 2 + 1],
+    }));
+
+    const [contactedLeads, proposalLeads, negotiationLeads] = funnelCounts;
     const funnel = [
       { stage: 'New', value: newLeads },
-      { stage: 'Contacted', value: await prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'CONTACTED' } }) },
+      { stage: 'Contacted', value: contactedLeads },
       { stage: 'Qualified', value: qualifiedLeads },
-      { stage: 'Proposal', value: await prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'PROPOSAL' } }) },
-      { stage: 'Negotiation', value: await prisma.lead.count({ where: { ...scope, deletedAt: null, status: 'NEGOTIATION' } }) },
+      { stage: 'Proposal', value: proposalLeads },
+      { stage: 'Negotiation', value: negotiationLeads },
       { stage: 'Won', value: wonLeads },
     ];
 
-    // Top salespeople by open leads + won value
-    const topSalespeople = await Promise.all(
-      owners.filter((o) => o.role === 'SALES').slice(0, 5).map(async (o) => {
-        const open = await prisma.lead.count({ where: { orgId: user.orgId, ownerId: o.id, deletedAt: null, status: { in: OPEN_STATUSES } } });
-        const won = await prisma.lead.aggregate({ where: { orgId: user.orgId, ownerId: o.id, deletedAt: null, status: 'WON' }, _sum: { expectedValue: true } });
-        return { name: o.name, open, wonValue: paiseToRupees(won._sum.expectedValue || 0) };
-      })
-    );
     topSalespeople.sort((a, b) => b.wonValue - a.wonValue || b.open - a.open);
-
-    // Recent leads + activity
-    const recentLeads = await prisma.lead.findMany({
-      where: { ...scope, deletedAt: null } as any,
-      orderBy: { createdAt: 'desc' },
-      take: 6,
-      include: { owner: { select: { name: true } } },
-    });
-    const recentActivity = await prisma.activity.findMany({
-      where: { orgId: user.orgId, ...(user.role === 'SALES' ? { userId: user.id } : {}) } as any,
-      orderBy: { createdAt: 'desc' },
-      take: 8,
-      include: { user: { select: { name: true } }, lead: { select: { name: true } } },
-    });
-
-    // Today's + overdue follow-ups
-    const [todaysTasks, overdueTasks] = await Promise.all([
-      prisma.task.findMany({
-        where: { orgId: user.orgId, status: 'PENDING', dueAt: { gte: startOfToday, lt: endOfToday }, ...(user.role === 'SALES' ? { userId: user.id } : {}) } as any,
-        orderBy: { dueAt: 'asc' },
-        include: { lead: { select: { id: true, name: true, phone: true } } },
-      }),
-      prisma.task.findMany({
-        where: { orgId: user.orgId, status: 'MISSED', ...(user.role === 'SALES' ? { userId: user.id } : {}) } as any,
-        orderBy: { dueAt: 'asc' },
-        take: 10,
-        include: { lead: { select: { id: true, name: true, phone: true } } },
-      }),
-    ]);
 
     const conversionRate = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
 
