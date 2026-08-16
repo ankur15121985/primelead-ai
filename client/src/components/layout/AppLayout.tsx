@@ -69,7 +69,7 @@ export function AppLayout() {
   );
 
   const sectionLabel = (text: string) => (
-    <p key={text} className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{text}</p>
+    <p key={text} className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{text}</p>
   );
 
   const navItems = (
@@ -90,7 +90,7 @@ export function AppLayout() {
           <span className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground">L</span>
             <span className="text-base font-extrabold tracking-tight">
-              PRIMELEAD <span className="text-primary">AI</span>
+              PRIMELEAD <span className="text-indigo-600">AI</span>
             </span>
           </span>
         </div>
@@ -136,7 +136,7 @@ export function AppLayout() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} aria-hidden />
           <div className="absolute inset-y-0 left-0 w-64 bg-background p-4 shadow-2xl animate-slide-in-right">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-base font-extrabold">PRIMELEAD <span className="text-primary">AI</span></span>
+              <span className="text-base font-extrabold">PRIMELEAD <span className="text-indigo-600">AI</span></span>
               <button onClick={() => setMobileOpen(false)} aria-label="Close menu" className="rounded p-1.5 hover:bg-accent">
                 <X className="h-5 w-5" />
               </button>

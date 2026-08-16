@@ -27,7 +27,7 @@ export function Pricing() {
             onClick={() => setAnnual(true)}
             className={cn('rounded-full px-5 py-2 text-sm font-semibold transition-all', annual ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}
           >
-            Annual <span className={cn('ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold', annual ? 'bg-white/20' : 'bg-success/10 text-success')}>save ~16%</span>
+            Annual <span className={cn('ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold', annual ? 'bg-black/25' : 'bg-success/10 text-success')}>save ~16%</span>
           </button>
         </div>
       </div>
@@ -49,12 +49,12 @@ export function Pricing() {
                 </span>
               )}
               <h2 className="text-lg font-bold">{plan.name}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
+              <p className="mt-1 text-sm text-slate-600">{plan.tagline}</p>
               <div className="mt-5 flex items-baseline gap-1">
                 <span className="text-4xl font-extrabold tracking-tight">₹{Math.round(price).toLocaleString('en-IN')}</span>
-                <span className="text-sm text-muted-foreground">/ month</span>
+                <span className="text-sm text-slate-600">/ month</span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-slate-600">
                 {annual && plan.monthly > 0 ? `Billed yearly (₹${plan.yearly.toLocaleString('en-IN')}/yr)` : plan.monthly === 0 ? 'Free forever' : 'Billed monthly'}
               </p>
               <Link to="/signup" className="mt-6">

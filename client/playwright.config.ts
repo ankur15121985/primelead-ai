@@ -22,7 +22,7 @@ export default defineConfig({
     ...devices['Desktop Chrome'],
   },
   webServer: {
-    command: 'npx prisma migrate deploy && node dist/index.js',
+    command: 'npx prisma migrate deploy && npx tsx prisma/seed.ts && node dist/index.js',
     cwd: '../server',
     port: 4055,
     reuseExistingServer: false,

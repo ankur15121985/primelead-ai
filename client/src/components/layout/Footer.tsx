@@ -39,7 +39,7 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-slate-800">
-        <div className="container flex flex-col items-center justify-between gap-2 py-5 text-xs text-slate-500 sm:flex-row">
+        <div className="container flex flex-col items-center justify-between gap-2 py-5 text-xs text-slate-400 sm:flex-row">
           <p>© {new Date().getFullYear()} PRIMELEAD AI. All rights reserved. (Demo product — not affiliated with any real CRM.)</p>
           <p className="flex gap-4">
             <span>Terms</span><span>Privacy</span><span>Security</span>

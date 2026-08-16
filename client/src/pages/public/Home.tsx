@@ -115,7 +115,7 @@ function CrmPreview() {
                 <Clock className="h-3.5 w-3.5" /> Follow-up overdue
               </p>
               <p className="mt-1.5 text-xs font-semibold">Priya Patel — Quotation follow-up</p>
-              <p className="text-[11px] text-amber-700/70">due yesterday · Call now</p>
+              <p className="text-[11px] text-amber-700">due yesterday · Call now</p>
             </div>
             <div className="rounded-xl border bg-primary/5 p-3">
               <p className="flex items-center gap-1.5 text-[11px] font-bold text-primary">

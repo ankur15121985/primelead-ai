@@ -10,6 +10,7 @@ import { useDashboard } from '@/hooks/queries';
 import { useAuth } from '@/hooks/use-auth';
 import { formatINR, inrShort, formatDateTime, timeAgo, dueLabel } from '@/lib/format';
 import { sourceLabel } from '@/lib/constants';
+import { DecorativeChart } from '@/components/ui/chart-a11y';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -108,14 +109,16 @@ export function Dashboard() {
           <CardHeader><CardTitle className="text-base">Leads by source</CardTitle></CardHeader>
           <CardContent>
             {isLoading ? <Skeleton className="h-64" /> : data && (
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={data.charts.leadsBySource} dataKey="count" nameKey="source" innerRadius={55} outerRadius={90} paddingAngle={2}>
-                    {data.charts.leadsBySource.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v: number, n: string) => [v, sourceLabel(n)]} />
-                </PieChart>
-              </ResponsiveContainer>
+              <DecorativeChart label="Pie chart of leads by source">
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie data={data.charts.leadsBySource} dataKey="count" nameKey="source" innerRadius={55} outerRadius={90} paddingAngle={2} isAnimationActive={false}>
+                      {data.charts.leadsBySource.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v: number, n: string) => [v, sourceLabel(n)]} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </DecorativeChart>
             )}
             {data && data.charts.leadsBySource.length > 0 && (
               <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">

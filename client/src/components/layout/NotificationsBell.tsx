@@ -43,7 +43,7 @@ export function NotificationsBell() {
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm font-medium">{n.title}</span>
                 {n.body && <span className="text-xs text-muted-foreground line-clamp-2">{n.body}</span>}
-                <span className="text-[10px] text-muted-foreground/70">{timeAgo(n.createdAt)}</span>
+                <span className="text-[10px] text-muted-foreground">{timeAgo(n.createdAt)}</span>
               </div>
             </Link>
           </DropdownItem>

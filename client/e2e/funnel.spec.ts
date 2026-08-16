@@ -33,8 +33,9 @@ test('signs up, creates a lead and schedules a follow-up', async ({ page }) => {
   await expect(page.getByText('E2E Lead').first()).toBeVisible({ timeout: 10_000 });
 
   // ── Open the lead and schedule a follow-up ──────────────────────────
-  await page.getByText('E2E Lead').first().click();
-  await expect(page).toHaveURL(/\/app\/leads\/[\w-]+/);
+  // Navigate via the lead's name link (the whole row isn't clickable).
+  await page.locator('a', { hasText: 'E2E Lead' }).first().click();
+  await expect(page).toHaveURL(/\/app\/leads\/[\w-]+/, { timeout: 10_000 });
   await page.click('button:has-text("Schedule follow-up")');
 
   const followDialog = page.locator('[role="dialog"]');

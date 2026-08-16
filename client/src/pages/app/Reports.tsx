@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BarChart3, Download, TrendingUp, Target, FileText, Receipt, CheckCircle2, XCircle, Activity as ActivityIcon, Users, ListChecks, AlarmClockOff } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
+import { DecorativeChart } from '@/components/ui/chart-a11y';
 import { useReports, useExportReport } from '@/hooks/queries';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -130,16 +131,18 @@ export function Reports() {
               <p className="mb-1 font-semibold">Leads by status</p>
               <p className="mb-3 text-xs text-muted-foreground">Pipeline distribution</p>
               <div className="h-56">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={charts?.byStatus || []} dataKey="count" nameKey="status" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                      {(charts?.byStatus || []).map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <DecorativeChart label="Pie chart of leads by status">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={charts?.byStatus || []} dataKey="count" nameKey="status" innerRadius={50} outerRadius={80} paddingAngle={2} isAnimationActive={false}>
+                        {(charts?.byStatus || []).map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </DecorativeChart>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
                 {(charts?.byStatus || []).map((s, i) => (

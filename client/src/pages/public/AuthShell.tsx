@@ -9,7 +9,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         <div>
           <span className="flex items-center gap-2">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white"><Zap className="h-5 w-5" fill="currentColor" /></span>
-            <span className="text-lg font-extrabold text-white">PRIMELEAD <span className="text-primary">AI</span></span>
+            <span className="text-lg font-extrabold text-white">PRIMELEAD <span className="text-indigo-300">AI</span></span>
           </span>
           <blockquote className="mt-16 max-w-md text-2xl font-bold leading-snug text-white">
             "We used to lose leads on weekends. Now every enquiry is captured, assigned and followed up — our conversions doubled."
@@ -33,7 +33,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         <div className="w-full max-w-md animate-fade-in">
           <Link to="/" className="mb-8 flex items-center gap-2 lg:hidden">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white"><Zap className="h-4 w-4" fill="currentColor" /></span>
-            <span className="text-lg font-extrabold">PRIMELEAD <span className="text-primary">AI</span></span>
+            <span className="text-lg font-extrabold">PRIMELEAD <span className="text-indigo-600">AI</span></span>
           </Link>
           {children}
         </div>

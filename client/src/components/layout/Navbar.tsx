@@ -19,7 +19,8 @@ export function Logo({ dark = false }: { dark?: boolean }) {
         <Zap className="h-5 w-5" fill="currentColor" />
       </span>
       <span className={cn('text-lg font-extrabold tracking-tight', dark ? 'text-white' : 'text-foreground')}>
-        PRIMELEAD <span className="text-primary">AI</span>
+        {/* indigo-300 on dark / indigo-600 on light — primary fails contrast in both */}
+        PRIMELEAD <span className={dark ? 'text-indigo-300' : 'text-indigo-600'}>AI</span>
       </span>
     </Link>
   );
