@@ -44,6 +44,7 @@ model Organization {
   messages     Message[]
   waTemplates  WaTemplate[]
   integrations Integration[]
+  integrationLogs IntegrationLog[]
   qrCodes      QrCode[]
   campaigns    Campaign[]
   notifications Notification[]
@@ -603,9 +604,9 @@ model WaTemplate {
 // ────────────────────────────────────────────────────────────
 
 model Integration {
-  id             String       @id @default(cuid())
+  id             String            @id @default(cuid())
   orgId          String
-  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org            Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   // FACEBOOK | INSTAGRAM | GOOGLE_ADS | WHATSAPP | INDIAMART | JUSTDIAL |
   // TRADEINDIA | SHOPIFY | ZAPIER | WEBHOOK | API | CUSTOM
   source         String
@@ -613,13 +614,35 @@ model Integration {
   config         Json? // credentials kept server-side only (encrypted in production)
   webhookSecret  String?
   webhookUrl     String?
-  enabled        Boolean      @default(false)
-  status         String       @default("DISCONNECTED") // DISCONNECTED | CONNECTED | ERROR
+  enabled        Boolean           @default(false)
+  status         String            @default("DISCONNECTED") // DISCONNECTED | CONNECTED | ERROR
   lastSyncAt     DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  errorCount     Int               @default(0)
+  lastError      String?
+  logs           IntegrationLog[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   @@unique([orgId, source])
+}
+
+/** Every inbound attempt on an integration — success, duplicate, or failure. */
+model IntegrationLog {
+  id            String      @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  integrationId String?
+  integration   Integration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  source        String // INDIAMART | FACEBOOK | …
+  status        String // SUCCESS | DUPLICATE | INVALID | FAILED
+  leadId        String?
+  message       String?
+  // Provider event id (leadgen_id / query id) — a natural replay key.
+  externalId    String?
+  error         String?
+  createdAt     DateTime    @default(now())
+
+  @@index([orgId, source, createdAt])
 }
 
 // ────────────────────────────────────────────────────────────

@@ -2213,3 +2213,243 @@ describe('Phase 6 · outbound messages, templates & status', () => {
     expect(sendB.status).toBe(404);
   });
 });
+// ────────────────────────────────────────────────────────────────────────
+// Phase 7 — IndiaMART + Meta Lead Ads source adapters
+// ────────────────────────────────────────────────────────────────────────
+
+async function connectSource(source: string, a: ReturnType<typeof request.agent>) {
+  const csrf = await getCsrf(a);
+  const res = await a.post(`/api/integrations/${source}/connect`).set('x-csrf-token', csrf);
+  expect(res.status).toBe(200);
+  return res.body.data.integration.webhookSecret as string;
+}
+
+describe('Phase 7 · IndiaMART adapter', () => {
+  it('normalizes a buyer enquiry into a source-attributed lead and logs it', async () => {
+    const { agent: a } = await signupFresh('Im Owner', 'Im Org');
+    const secret = await connectSource('INDIAMART', a);
+
+    const res = await request(server)
+      .post('/api/webhooks/indiamart')
+      .set('x-webhook-secret', secret)
+      .send({
+        QUERY_ID: 'IM-QUERY-88231',
+        BUYER_NAME: 'Vikram Malhotra',
+        MOBILE: '9815557777',
+        EMAIL: 'vikram@example.com',
+        COMPANY: 'Malhotra Steels',
+        PRODUCT: 'CNC machine',
+        QUERY: 'Need a quote for a CNC lathe, delivery to Pune.',
+        CITY: 'Pune',
+        STATE: 'Maharashtra',
+        QTY: '2 units',
+      });
+    expect(res.status).toBe(201);
+    expect(res.body.data.received).toBe(true);
+
+    const leads = await a.get('/api/leads?search=vikram');
+    const lead = leads.body.data.rows[0];
+    expect(lead.source).toBe('INDIAMART');
+    expect(lead.name).toBe('Vikram Malhotra');
+    expect(lead.company).toBe('Malhotra Steels');
+    expect(lead.customFields.product).toBe('CNC machine');
+    expect(lead.customFields.city).toBe('Pune');
+    expect(lead.customFields.indiamartQueryId).toBe('IM-QUERY-88231');
+    expect(lead.notes).toContain('CNC');
+
+    // the attempt is logged as SUCCESS
+    const logs = await a.get('/api/integrations/INDIAMART/logs');
+    expect(logs.status).toBe(200);
+    expect(logs.body.data.counts.success).toBe(1);
+    expect(logs.body.data.logs[0].status).toBe('SUCCESS');
+    expect(logs.body.data.logs[0].externalId).toBe('IM-QUERY-88231');
+    expect(logs.body.data.health.lastSyncAt).toBeTruthy();
+  });
+
+  it('answers 409 on a duplicate buyer and 409 on a replay of the same query id', async () => {
+    const { agent: a } = await signupFresh('Im Dup Owner', 'Im Dup Org');
+    const secret = await connectSource('INDIAMART', a);
+
+    const payload = {
+      QUERY_ID: 'IM-QUERY-90001',
+      BUYER_NAME: 'Sameer Jain',
+      MOBILE: '9816668888',
+      QUERY: 'Interested in packaging machines.',
+    };
+    expect((await request(server).post('/api/webhooks/indiamart').set('x-webhook-secret', secret).send(payload)).status).toBe(201);
+
+    // same phone → duplicate
+    const dupPhone = await request(server)
+      .post('/api/webhooks/indiamart')
+      .set('x-webhook-secret', secret)
+      .send({ ...payload, QUERY_ID: 'IM-QUERY-90002', BUYER_NAME: 'Sameer Again' });
+    expect(dupPhone.status).toBe(409);
+    expect(dupPhone.body.error.message).toContain('already exists');
+
+    // same QUERY_ID (provider retry) with a different number → replay-guarded
+    const replay = await request(server)
+      .post('/api/webhooks/indiamart')
+      .set('x-webhook-secret', secret)
+      .send({ ...payload, MOBILE: '9816669999' });
+    expect(replay.status).toBe(409);
+    expect(replay.body.error.message).toContain('replay');
+
+    const logs = await a.get('/api/integrations/INDIAMART/logs');
+    expect(logs.body.data.counts.success).toBe(1);
+    expect(logs.body.data.counts.duplicate).toBe(2);
+
+    // exactly one lead with this phone
+    const leads = await a.get('/api/leads?search=Sameer');
+    expect(leads.body.data.rows.filter((l: any) => l.phone === '9816668888').length).toBe(1);
+  });
+
+  it('rejects malformed enquiries with 422, logs them, and degrades connection health', async () => {
+    const { agent: a } = await signupFresh('Im Bad Owner', 'Im Bad Org');
+    const secret = await connectSource('INDIAMART', a);
+
+    const bad = await request(server).post('/api/webhooks/indiamart').set('x-webhook-secret', secret).send({ random: 'nonsense' });
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.code).toBe('INVALID_PAYLOAD');
+
+    // repeated failures flip the connection to ERROR health
+    for (let i = 0; i < 4; i++) {
+      await request(server).post('/api/webhooks/indiamart').set('x-webhook-secret', secret).send({ nope: i });
+    }
+    const integrations = await a.get('/api/integrations');
+    const im = integrations.body.data.connections.find((c: any) => c.source === 'INDIAMART');
+    expect(im.status).toBe('ERROR');
+    expect(im.errorCount).toBeGreaterThanOrEqual(5);
+    expect(im.lastError).toBeTruthy();
+
+    // a healthy payload resets the health
+    const okRes = await request(server).post('/api/webhooks/indiamart').set('x-webhook-secret', secret).send({
+      BUYER_NAME: 'Healthy Buyer',
+      MOBILE: '9811112222',
+      QUERY: 'Hello',
+    });
+    expect(okRes.status).toBe(201);
+    const after = (await a.get('/api/integrations')).body.data.connections.find((c: any) => c.source === 'INDIAMART');
+    expect(after.status).toBe('CONNECTED');
+    expect(after.errorCount).toBe(0);
+  });
+});
+describe('Phase 7 · Meta Lead Ads adapter', () => {
+  it('normalizes a Facebook leadgen webhook into a lead with campaign attribution', async () => {
+    const { agent: a } = await signupFresh('Meta Owner', 'Meta Org');
+    const secret = await connectSource('FACEBOOK', a);
+
+    const res = await request(server)
+      .post('/api/webhooks/facebook')
+      .set('x-webhook-secret', secret)
+      .send({
+        object: 'page',
+        entry: [{
+          id: 'page-1001',
+          changes: [{
+            field: 'leadgen',
+            value: {
+              leadgen_id: 'leadgen-556677',
+              form_id: 'form-900',
+              ad_id: 'ad-77',
+              adset_id: 'adset-55',
+              campaign_id: 'camp-33',
+              page_id: 'page-1001',
+              created_time: 1720000000,
+              field_data: [
+                { name: 'full_name', values: ['Ananya Gupta'] },
+                { name: 'phone_number', values: ['+91 98300 11223'] },
+                { name: 'email', values: ['ananya@example.com'] },
+                { name: 'company_name', values: ['Gupta Interiors'] },
+                { name: 'city', values: ['Mumbai'] },
+                { name: 'budget', values: ['₹50k–1L'] },
+              ],
+            },
+          }],
+        }],
+      });
+    expect(res.status).toBe(201);
+
+    const leads = await a.get('/api/leads?search=ananya');
+    const lead = leads.body.data.rows[0];
+    expect(lead.source).toBe('FACEBOOK');
+    expect(lead.name).toBe('Ananya Gupta');
+    expect(lead.phone).toBe('9830011223');
+    expect(lead.customFields.metaCampaignId).toBe('camp-33');
+    expect(lead.customFields.metaAdId).toBe('ad-77');
+    expect(lead.customFields.metaFormId).toBe('form-900');
+    expect(lead.customFields['question:budget']).toBe('₹50k–1L');
+
+    const logs = await a.get('/api/integrations/FACEBOOK/logs');
+    expect(logs.body.data.counts.success).toBe(1);
+    expect(logs.body.data.logs[0].externalId).toBe('leadgen-556677');
+  });
+
+  it('replays the same leadgen_id only once and rejects malformed payloads', async () => {
+    const { agent: a } = await signupFresh('Meta Dup Owner', 'Meta Dup Org');
+    const secret = await connectSource('FACEBOOK', a);
+
+    const payload = {
+      object: 'page',
+      entry: [{
+        id: 'page-2',
+        changes: [{
+          field: 'leadgen',
+          value: {
+            leadgen_id: 'leadgen-999',
+            form_id: 'form-1',
+            field_data: [
+              { name: 'full_name', values: ['Repeat Customer'] },
+              { name: 'phone_number', values: ['9812340000'] },
+            ],
+          },
+        }],
+      }],
+    };
+
+    expect((await request(server).post('/api/webhooks/facebook').set('x-webhook-secret', secret).send(payload)).status).toBe(201);
+    // provider retries the identical event → replayed, no new lead
+    const replay = await request(server).post('/api/webhooks/facebook').set('x-webhook-secret', secret).send(payload);
+    expect(replay.status).toBe(409);
+    expect(replay.body.error.message).toContain('replay');
+
+    const leads = await a.get('/api/leads?search=Repeat');
+    expect(leads.body.data.rows.length).toBe(1);
+
+    // malformed (no leadgen_id) → 422
+    const bad = await request(server)
+      .post('/api/webhooks/facebook')
+      .set('x-webhook-secret', secret)
+      .send({ object: 'page', entry: [{ changes: [{ field: 'leadgen', value: { field_data: [] } }] }] });
+    expect(bad.status).toBe(422);
+  });
+
+  it('keeps integration logs org-isolated and manager-gated', async () => {
+    const { agent: a } = await signupFresh('Log Owner A', 'Log Org A');
+    const { agent: b } = await signupFresh('Log Owner B', 'Log Org B');
+    const secret = await connectSource('INDIAMART', a);
+    await request(server).post('/api/webhooks/indiamart').set('x-webhook-secret', secret).send({
+      BUYER_NAME: 'Org A Buyer',
+      MOBILE: '9817770000',
+      QUERY: 'hi',
+    });
+
+    // org B cannot see org A's logs (no connection of its own either)
+    const logsB = await b.get('/api/integrations/INDIAMART/logs');
+    expect(logsB.status).toBe(400);
+    expect(logsB.body.error.message).toContain('Connect');
+
+    // viewer cannot access logs
+    const { agent: owner } = await signupFresh('Log Rbac Owner', 'Log Rbac Org');
+    const viewerEmail = 'logviewer@test.com';
+    await owner.post('/api/team').set('x-csrf-token', await getCsrf(owner)).send({
+      name: 'Log Viewer',
+      email: viewerEmail,
+      role: 'VIEWER',
+      password: 'StrongPass123',
+    });
+    const viewer = request.agent(server);
+    await loginAs(viewer, viewerEmail, 'StrongPass123');
+    const denied = await viewer.get('/api/integrations/INDIAMART/logs');
+    expect(denied.status).toBe(403);
+  });
+});

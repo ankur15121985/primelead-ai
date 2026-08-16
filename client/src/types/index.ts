@@ -432,8 +432,31 @@ export interface Integration {
   webhookUrl: string | null;
   hasWebhookSecret: boolean;
   lastSyncAt: string | null;
+  errorCount: number;
+  lastError: string | null;
   config: Record<string, unknown>;
   createdAt: string;
+}
+
+export interface IntegrationLogEntry {
+  id: string;
+  status: string;
+  message: string | null;
+  error: string | null;
+  leadId: string | null;
+  externalId: string | null;
+  createdAt: string;
+}
+
+export interface IntegrationLogsResponse {
+  logs: IntegrationLogEntry[];
+  health: {
+    status: string;
+    lastSyncAt: string | null;
+    errorCount: number;
+    lastError: string | null;
+  } | null;
+  counts: { success: number; duplicate: number; invalid: number; failed: number };
 }
 
 export interface IntegrationCatalogItem {

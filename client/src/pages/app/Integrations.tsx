@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plug, Zap, Copy, Check, Power, Trash2, Webhook, KeyRound, ExternalLink, ShieldCheck } from 'lucide-react';
-import { useIntegrations, useConnectIntegration, useUpdateIntegration, useDisconnectIntegration } from '@/hooks/queries';
+import { Plug, Zap, Copy, Check, Power, Trash2, Webhook, KeyRound, ExternalLink, ShieldCheck, Activity, AlertTriangle } from 'lucide-react';
+import { useIntegrations, useConnectIntegration, useUpdateIntegration, useDisconnectIntegration, useIntegrationLogs } from '@/hooks/queries';
 import { useToast } from '@/hooks/use-toast';
 import { friendlyError, useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/ui/page-header';
@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import type { IntegrationCatalogItem } from '@/types';
+import type { Integration, IntegrationCatalogItem } from '@/types';
+import { timeAgo } from '@/lib/format';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   MessageCircle: Plug, Facebook: Plug, Instagram: Plug, Search: Plug, Store: Plug,
@@ -25,6 +26,7 @@ export function Integrations() {
   const { user } = useAuth();
   const isManager = ['OWNER', 'ADMIN', 'MANAGER'].includes(user?.role || '');
   const [secretFor, setSecretFor] = useState<{ source: string; webhookUrl: string; webhookSecret: string; name: string } | null>(null);
+  const [logsFor, setLogsFor] = useState<Integration | null>(null);
   const [copied, setCopied] = useState(false);
 
   const catalog = data?.catalog || [];
@@ -91,7 +93,13 @@ export function Integrations() {
                     <Icon className="h-5 w-5" />
                   </span>
                   {conn ? (
-                    <Badge tone="success">Connected</Badge>
+                    conn.errorCount > 0 ? (
+                      <Badge tone="warning">
+                        <AlertTriangle className="h-3 w-3" /> Needs attention
+                      </Badge>
+                    ) : (
+                      <Badge tone="success">Connected</Badge>
+                    )
                   ) : (
                     <Badge tone="muted">Not connected</Badge>
                   )}
@@ -115,6 +123,11 @@ export function Integrations() {
                       {conn.webhookUrl && (
                         <Button size="sm" variant="ghost" onClick={() => setSecretFor({ source: item.source, webhookUrl: conn.webhookUrl!, webhookSecret: '', name: item.name })}>
                           <KeyRound className="h-3.5 w-3.5" /> Details
+                        </Button>
+                      )}
+                      {conn.status !== 'DISCONNECTED' && (
+                        <Button size="sm" variant="ghost" onClick={() => setLogsFor(conn)}>
+                          <Activity className="h-3.5 w-3.5" /> Activity
                         </Button>
                       )}
                       {isManager && (
@@ -141,7 +154,92 @@ export function Integrations() {
           onClose={() => { setSecretFor(null); setCopied(false); }}
         />
       )}
+
+      {logsFor && (
+        <LogsDialog
+          source={logsFor.source}
+          name={logsFor.name}
+          enabled={logsFor.enabled}
+          onClose={() => setLogsFor(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function LogsDialog({ source, name, enabled, onClose }: { source: string; name: string; enabled: boolean; onClose: () => void }) {
+  const { data, isLoading } = useIntegrationLogs(source);
+  const [filter, setFilter] = useState('');
+  const health = data?.health;
+  const logs = (data?.logs || []).filter((l) => !filter || l.status === filter);
+  const counts = data?.counts || { success: 0, duplicate: 0, invalid: 0, failed: 0 };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent title={`${name} — activity`} description="Every inbound attempt is recorded here so connection health is always visible." className="max-w-2xl">
+        <div className="space-y-4">
+          {/* Connection health */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
+              <p className="mt-0.5 text-sm font-semibold">{enabled ? 'Live' : 'Paused'}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Last sync</p>
+              <p className="mt-0.5 text-sm font-semibold">{health?.lastSyncAt ? timeAgo(health.lastSyncAt) : '—'}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Errors</p>
+              <p className="mt-0.5 text-sm font-semibold">{health?.errorCount || 0}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Leads</p>
+              <p className="mt-0.5 text-sm font-semibold">{counts.success}</p>
+            </div>
+          </div>
+
+          {health?.lastError && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0">{health.lastError}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <div className="flex gap-1.5">
+              {['SUCCESS', 'DUPLICATE', 'INVALID', 'FAILED'].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setFilter(filter === s ? '' : s)}
+                  className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${filter === s ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                >
+                  {s[0] + s.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="max-h-72 divide-y overflow-y-auto rounded-lg border">
+            {isLoading && <p className="p-4 text-center text-xs text-muted-foreground">Loading activity…</p>}
+            {!isLoading && logs.length === 0 && (
+              <p className="p-4 text-center text-xs text-muted-foreground">No activity yet — incoming webhook calls will appear here.</p>
+            )}
+            {logs.map((l) => (
+              <div key={l.id} className="flex items-start gap-2 px-3 py-2.5">
+                <Badge tone={l.status === 'SUCCESS' ? 'success' : l.status === 'DUPLICATE' ? 'info' : l.status === 'INVALID' ? 'warning' : 'danger'} className="mt-0.5 shrink-0">
+                  {l.status}
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs">{l.message || l.error || l.status}</p>
+                  {l.externalId && <p className="text-[10px] text-muted-foreground">Ref: {l.externalId}</p>}
+                </div>
+                <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo(l.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

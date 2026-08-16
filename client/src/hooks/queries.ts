@@ -3,9 +3,10 @@ import { api, download } from '@/lib/api';
 import type {
   AdminOrg, AdminOrgDetail, AdminOverview, AdminSystem, AiConversation, AiConversationDetail,
   BillingData, Contact, ConversationDetail, ConversationListResponse, CreditNote, DashboardData,
-  DebitNote, GstSettings, Integration, IntegrationCatalogItem, Invoice, Lead, LeadDetail,
-  LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta, QrCode, QrDetail,
-  Quotation, Reconciliation, ReportData, Task, UpgradeResult, User, WaSettings, WaTemplate,
+  DebitNote, GstSettings, Integration, IntegrationCatalogItem, IntegrationLogsResponse, Invoice,
+  Lead, LeadDetail, LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta,
+  QrCode, QrDetail, Quotation, Reconciliation, ReportData, Task, UpgradeResult, User,
+  WaSettings, WaTemplate,
 } from '@/types';
 
 /** All TanStack Query hooks for the app. */
@@ -687,6 +688,16 @@ export function useDisconnectIntegration() {
   return useMutation({
     mutationFn: (source: string) => api(`/integrations/${source}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
+
+export function useIntegrationLogs(source: string) {
+  return useQuery({
+    queryKey: ['integration-logs', source],
+    queryFn: () => api<IntegrationLogsResponse>(`/integrations/${source}/logs`),
+    enabled: Boolean(source),
+    refetchInterval: 15_000,
+    staleTime: 5_000,
   });
 }
 

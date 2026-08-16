@@ -51,6 +51,8 @@ router.get(
       webhookUrl: r.webhookUrl,
       hasWebhookSecret: Boolean(r.webhookSecret),
       lastSyncAt: r.lastSyncAt,
+      errorCount: r.errorCount,
+      lastError: r.lastError,
       config: r.config ? Object.fromEntries(Object.entries(r.config as Record<string, unknown>).filter(([k]) => !/key|secret|token|password/i.test(k))) : {},
       createdAt: r.createdAt,
     }));
@@ -144,6 +146,46 @@ router.delete(
     await prisma.integration.delete({ where: { id: existing.id } });
     await audit({ orgId: user.orgId, userId: user.id, action: 'INTEGRATION_DISCONNECTED', entity: 'Integration', entityId: existing.id, metadata: { source }, req });
     return ok(res, { deleted: true });
+  })
+);
+
+/** Recent ingestion activity for a source — the connection's audit trail. */
+router.get(
+  '/:source/logs',
+  requirePermission('integrations.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const source = String(req.params.source).toUpperCase();
+    const existing = await prisma.integration.findFirst({ where: { orgId: user.orgId, source } });
+    if (!existing) throw badRequest('Connect this integration first.');
+    const status = String(req.query.status || '').toUpperCase();
+    const logs = await prisma.integrationLog.findMany({
+      where: { orgId: user.orgId, source, ...(status ? { status } : {}) },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: { integration: { select: { id: true, source: true, status: true, lastSyncAt: true, errorCount: true, lastError: true } } },
+    });
+    const health = logs[0]?.integration || null;
+    return ok(res, {
+      logs: logs.map((l) => ({
+        id: l.id,
+        status: l.status,
+        message: l.message,
+        error: l.error,
+        leadId: l.leadId,
+        externalId: l.externalId,
+        createdAt: l.createdAt,
+      })),
+      health: health
+        ? { status: health.status, lastSyncAt: health.lastSyncAt, errorCount: health.errorCount, lastError: health.lastError }
+        : null,
+      counts: {
+        success: await prisma.integrationLog.count({ where: { orgId: user.orgId, source, status: 'SUCCESS' } }),
+        duplicate: await prisma.integrationLog.count({ where: { orgId: user.orgId, source, status: 'DUPLICATE' } }),
+        invalid: await prisma.integrationLog.count({ where: { orgId: user.orgId, source, status: 'INVALID' } }),
+        failed: await prisma.integrationLog.count({ where: { orgId: user.orgId, source, status: 'FAILED' } }),
+      },
+    });
   })
 );
 

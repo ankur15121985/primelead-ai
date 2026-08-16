@@ -20,6 +20,7 @@ export const unauthorized = (msg = 'Please sign in to continue') => new ApiError
 export const forbidden = (msg = 'You do not have permission to do that') => new ApiError(403, 'FORBIDDEN', msg);
 export const notFound = (msg = 'Not found') => new ApiError(404, 'NOT_FOUND', msg);
 export const conflict = (msg: string) => new ApiError(409, 'CONFLICT', msg);
+export const unprocessable = (msg: string) => new ApiError(422, 'INVALID_PAYLOAD', msg);
 export const tooMany = (msg = 'Too many requests. Please slow down.') => new ApiError(429, 'RATE_LIMITED', msg);
 export const serverError = (msg = 'Something went wrong on our side. Please try again.') =>
   new ApiError(500, 'INTERNAL', msg);
