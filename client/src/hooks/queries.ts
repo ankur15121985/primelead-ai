@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, download } from '@/lib/api';
 import type {
   AdminOrg, AdminOrgDetail, AdminOverview, AdminSystem, AiConversation, AiConversationDetail,
-  BillingData, Contact, CreditNote, DashboardData, DebitNote, GstSettings, Integration, IntegrationCatalogItem,
-  Invoice, Lead, LeadDetail, LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta,
-  QrCode, QrDetail, Quotation, Reconciliation, ReportData, Task, UpgradeResult, User,
+  BillingData, Contact, ConversationDetail, ConversationListResponse, CreditNote, DashboardData,
+  DebitNote, GstSettings, Integration, IntegrationCatalogItem, Invoice, Lead, LeadDetail,
+  LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta, QrCode, QrDetail,
+  Quotation, Reconciliation, ReportData, Task, UpgradeResult, User, WaSettings, WaTemplate,
 } from '@/types';
 
 /** All TanStack Query hooks for the app. */
@@ -842,6 +843,129 @@ export function useDeleteContact() {
   return useMutation({
     mutationFn: (id: string) => api(`/contacts/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['contacts'] }),
+  });
+}
+
+// ── WhatsApp / shared inbox ───────────────────────────────
+export function useConversations(filters: { status?: string; q?: string; mine?: boolean } = {}) {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.q) params.set('q', filters.q);
+  if (filters.mine) params.set('mine', '1');
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ['conversations', qs],
+    queryFn: () => api<ConversationListResponse>(`/whatsapp/conversations?${qs}`),
+    refetchInterval: 15_000,
+    staleTime: 5_000,
+  });
+}
+
+export function useConversation(id: string) {
+  return useQuery({
+    queryKey: ['conversation', id],
+    queryFn: () => api<ConversationDetail>(`/whatsapp/conversations/${id}`),
+    enabled: Boolean(id),
+    refetchInterval: 10_000,
+    staleTime: 3_000,
+  });
+}
+
+export function useSendMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { conversationId: string; body?: string; templateName?: string; templateParams?: string[]; templateLanguage?: string }) =>
+      api(`/whatsapp/conversations/${input.conversationId}/messages`, { body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversation'] });
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
+export function useUpdateConversation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; assigneeId?: string | null; status?: string; labels?: string[] }) =>
+      api(`/whatsapp/conversations/${input.id}`, { method: 'PATCH', body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversation'] });
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
+export function useMarkConversationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/whatsapp/conversations/${id}/read`, { body: {} }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversation'] });
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+    },
+  });
+}
+
+export function useWaTemplates() {
+  return useQuery({
+    queryKey: ['wa-templates'],
+    queryFn: () => api<{ templates: WaTemplate[] }>('/whatsapp/templates'),
+    staleTime: 30_000,
+  });
+}
+
+export function useCreateWaTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; category?: string; language?: string; body: string }) =>
+      api<{ template: WaTemplate }>('/whatsapp/templates', { body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wa-templates'] }),
+  });
+}
+
+export function useUpdateWaTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; status?: string; body?: string }) =>
+      api<{ template: WaTemplate }>(`/whatsapp/templates/${input.id}`, { method: 'PATCH', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wa-templates'] }),
+  });
+}
+
+export function useDeleteWaTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/whatsapp/templates/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wa-templates'] }),
+  });
+}
+
+export function useWaSettings() {
+  return useQuery({
+    queryKey: ['wa-settings'],
+    queryFn: () => api<{ settings: WaSettings }>('/whatsapp/settings'),
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateWaSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { enabled?: boolean; provider?: string; phoneNumberId?: string | null; verifyToken?: string | null; token?: string }) =>
+      api<{ settings: WaSettings }>('/whatsapp/settings', { method: 'PATCH', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wa-settings'] }),
+  });
+}
+
+export function useDemoInbound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { from: string; body?: string; type?: string; mediaUrl?: string; mediaType?: string }) =>
+      api<{ received: boolean; conversationId: string; normalizedFrom: string }>('/whatsapp/demo/inbound', { body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+      qc.invalidateQueries({ queryKey: ['conversation'] });
+    },
   });
 }
 

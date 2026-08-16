@@ -40,6 +40,9 @@ model Organization {
   invoices     Invoice[]
   creditNotes  CreditNote[]
   debitNotes   DebitNote[]
+  conversations Conversation[]
+  messages     Message[]
+  waTemplates  WaTemplate[]
   integrations Integration[]
   qrCodes      QrCode[]
   campaigns    Campaign[]
@@ -84,6 +87,7 @@ model User {
   tasks         Task[]
   notifications Notification[]
   aiConversations AiConversation[]
+  assignedConversations Conversation[] @relation("ConversationAssignee")
   referrals     Referral[]
   sessions      Session[]
   mfa           MfaSecret?
@@ -151,6 +155,7 @@ model Lead {
   invoices   Invoice[]
   creditNotes CreditNote[]
   debitNotes  DebitNote[]
+  conversations Conversation[]
   contacts   Contact[]
   qrScans    QrScan[]
 
@@ -516,6 +521,81 @@ model DebitNoteItem {
   igst        Int       @default(0) // paise
   amount      Int       @default(0) // paise
   createdAt   DateTime  @default(now())
+}
+
+// ────────────────────────────────────────────────────────────
+// WhatsApp conversations (shared team inbox)
+// ────────────────────────────────────────────────────────────
+
+model Conversation {
+  id               String       @id @default(cuid())
+  orgId            String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId           String?
+  lead             Lead?        @relation(fields: [leadId], references: [id])
+  contactId        String?
+  // Customer's WhatsApp number/ID (E.164, digits only) — unique per org.
+  waId             String
+  customerName     String
+  channel          String       @default("WHATSAPP") // WHATSAPP | (future: EMAIL | SMS …)
+  status           String       @default("OPEN") // OPEN | CLOSED
+  assigneeId       String?
+  assignee         User?        @relation("ConversationAssignee", fields: [assigneeId], references: [id])
+  labels           Json? // string[]
+  lastMessageAt    DateTime?
+  lastMessagePreview String?
+  unreadCount      Int          @default(0)
+  messages         Message[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([orgId, waId])
+  @@index([orgId, status])
+  @@index([orgId, assigneeId])
+  @@index([orgId, updatedAt])
+}
+
+model Message {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  conversationId  String
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction       String       @default("INBOUND") // INBOUND | OUTBOUND
+  channel         String       @default("WHATSAPP")
+  type            String       @default("TEXT") // TEXT | MEDIA | TEMPLATE
+  body            String?
+  mediaUrl        String?
+  mediaType       String? // image | video | document | audio
+  mediaCaption    String?
+  // Provider message id — the idempotency key for inbound/status webhooks.
+  waMessageId     String?      @unique
+  waTemplateName  String?
+  status          String       @default("QUEUED") // QUEUED | SENT | DELIVERED | READ | FAILED
+  error           String?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId, conversationId])
+  @@index([orgId, createdAt])
+}
+
+model WaTemplate {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String // provider template name, e.g. follow_up_offer
+  category    String       @default("UTILITY") // UTILITY | MARKETING | AUTHENTICATION
+  language    String       @default("en")
+  body        String // supports {{1}}, {{2}} placeholders
+  status      String       @default("ACTIVE") // ACTIVE | PAUSED
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([orgId, name])
 }
 
 // ────────────────────────────────────────────────────────────

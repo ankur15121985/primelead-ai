@@ -15,10 +15,10 @@ export const loginLimiter = rateLimit({
   },
 });
 
-/** Global API limiter per IP. */
+/** Global API limiter per IP (override via API_RATE_LIMIT for test suites). */
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 600,
+  limit: Number(process.env.API_RATE_LIMIT || 600),
   standardHeaders: true,
   legacyHeaders: false,
   handler: (_req, _res) => {

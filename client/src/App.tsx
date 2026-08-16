@@ -26,6 +26,7 @@ import { Leads } from '@/pages/app/Leads';
 import { LeadDetail } from '@/pages/app/LeadDetail';
 import { Pipeline } from '@/pages/app/Pipeline';
 import { Tasks } from '@/pages/app/Tasks';
+import { Inbox } from '@/pages/app/Inbox';
 import { Calendar } from '@/pages/app/Calendar';
 import { Contacts } from '@/pages/app/Contacts';
 import { Quotations } from '@/pages/app/Quotations';
@@ -94,6 +95,7 @@ export default function App() {
         <Route path="leads/:id" element={<LeadDetail />} />
         <Route path="pipeline" element={<Pipeline />} />
         <Route path="tasks" element={<Tasks />} />
+        <Route path="inbox" element={<Inbox />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="contacts" element={<Contacts />} />
         <Route path="quotations" element={<Quotations />} />

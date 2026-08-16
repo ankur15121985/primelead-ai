@@ -556,3 +556,69 @@ export interface Contact {
   createdAt: string;
   updatedAt: string;
 }
+
+// ── WhatsApp / shared inbox ────────────────────────────────────
+export interface Conversation {
+  id: string;
+  leadId: string | null;
+  lead: { id: string; name: string; phone: string | null } | null;
+  waId: string;
+  customerName: string;
+  channel: string;
+  status: string;
+  assigneeId: string | null;
+  assignee: { id: string; name: string } | null;
+  labels: string[] | null;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  unreadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WaMessage {
+  id: string;
+  conversationId: string;
+  direction: string;
+  channel: string;
+  type: string;
+  body: string | null;
+  mediaUrl: string | null;
+  mediaType: string | null;
+  waTemplateName: string | null;
+  status: string;
+  error: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface ConversationListResponse {
+  conversations: Conversation[];
+  unreadTotal: number;
+}
+
+export interface ConversationDetail {
+  conversation: Conversation;
+  messages: WaMessage[];
+}
+
+export interface WaTemplate {
+  id: string;
+  name: string;
+  category: string;
+  language: string;
+  body: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WaSettings {
+  enabled: boolean;
+  provider: string;
+  phoneNumberId: string | null;
+  hasToken: boolean;
+  verifyToken: string | null;
+}

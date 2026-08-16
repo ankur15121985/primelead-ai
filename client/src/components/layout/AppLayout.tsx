@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, KanbanSquare, ListChecks, Shield, Settings, LogOut, Search, Menu, X, QrCode, ShieldCheck,
-  CalendarDays, BookUser, FileText, Receipt, BarChart3, Bot, Plug, CreditCard,
+  CalendarDays, BookUser, FileText, Receipt, BarChart3, Bot, Plug, CreditCard, MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { NotificationsBell } from './NotificationsBell';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { to: '/app/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/app/leads', label: 'Leads', icon: Users },
+  { to: '/app/inbox', label: 'Inbox', icon: MessageSquare },
   { to: '/app/pipeline', label: 'Pipeline', icon: KanbanSquare },
   { to: '/app/tasks', label: 'Follow-ups', icon: ListChecks },
   { to: '/app/calendar', label: 'Calendar', icon: CalendarDays },
@@ -185,7 +186,7 @@ export function AppLayout() {
             {[
               NAV[0], // Dashboard
               NAV[1], // Leads
-              NAV[3], // Follow-ups
+              NAV[2], // Inbox
               SELL_NAV[0], // Quotations
               SELL_NAV[3], // AI Assistant
             ].map((item) => (

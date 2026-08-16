@@ -26,6 +26,8 @@ import reportsRoutes from './routes/reports.routes';
 import integrationsRoutes from './routes/integrations.routes';
 import webhooksRoutes from './routes/webhooks.routes';
 import paymentWebhooksRoutes from './routes/payment-webhooks.routes';
+import whatsappWebhookRoutes from './routes/whatsapp-webhook.routes';
+import whatsappRoutes from './routes/whatsapp.routes';
 import billingRoutes from './routes/billing.routes';
 import contactsRoutes from './routes/contacts.routes';
 import adminRoutes from './routes/admin.routes';
@@ -55,9 +57,10 @@ export function createApp() {
 
   app.use(requestId);
 
-  // Payment webhooks need the RAW body for HMAC signature verification, so
-  // they are mounted BEFORE express.json() parses (and consumes) the stream.
+  // Webhooks that need the RAW body for HMAC signature verification are
+  // mounted BEFORE express.json() parses (and consumes) the stream.
   app.use('/api/webhooks/payments', express.raw({ type: '*/*', limit: '1mb' }), paymentWebhooksRoutes);
+  app.use('/api/webhooks/whatsapp', express.raw({ type: '*/*', limit: '1mb' }), whatsappWebhookRoutes);
 
   app.use(express.json({ limit: '2mb' }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
@@ -84,6 +87,7 @@ export function createApp() {
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/notifications', notificationsRoutes);
   app.use('/api/team', teamRoutes);
+  app.use('/api/whatsapp', whatsappRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/ai', aiRoutes);

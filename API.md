@@ -341,6 +341,50 @@ curl -X POST https://your-app/api/webhooks/whatsapp \
   -d '{"name":"Rahul","phone":"9811111111","email":"rahul@example.com"}'
 ```
 
+## WhatsApp / shared inbox
+
+A provider-agnostic team inbox. Business logic never talks to the WhatsApp Business Platform directly — it goes through a `WhatsAppProvider` adapter:
+
+- **demo** (default) — fully functional locally: outbound sends succeed instantly and the authenticated demo simulator drives the exact same inbound pipeline a real webhook would.
+- **meta** — official Graph API. Webhook parsing + `X-Hub-Signature-256` verification are implemented; outbound sends are **IMPLEMENTATION REQUIRED** until exercised with a real business number.
+
+Provider config lives in org settings (never returned to the client): `{ enabled, provider, token, phoneNumberId, verifyToken }`. The token is **write-only** — an empty value keeps the existing one.
+
+### `GET /whatsapp/conversations?status=OPEN|CLOSED|ALL&q=&mine=1` (`inbox.view`)
+
+→ `200 { data: { conversations, unreadTotal } }`. Conversation: id, lead (linked by phone), waId, customerName, status, assignee, labels, lastMessagePreview, unreadCount.
+
+### `GET /whatsapp/conversations/:id` (`inbox.view`) → `200 { data: { conversation, messages } }`
+
+### `POST /whatsapp/conversations/:id/messages` (`inbox.send`)
+
+`{ "body": "text", … }` **or** `{ "templateName": "quote_ready", "templateParams": ["Ravi"], "templateLanguage": "en" }`. → `201 { data: { sent, messageId, status } }` (502 with `status: FAILED` when the provider rejects).
+
+### `PATCH /whatsapp/conversations/:id` (`inbox.assign`)
+
+`{ "assigneeId": <userId|null> }` (must belong to this org) or `{ "status": "OPEN|CLOSED", "labels": […] }`.
+
+### `POST /whatsapp/conversations/:id/read` (`inbox.view`) — clears the unread counter
+
+### `GET|POST /whatsapp/templates` (`inbox.view` / `inbox.manage`)
+
+Templates use `{{1}}`-style placeholders and are unique per org (`name`). `PATCH /templates/:id` toggles `ACTIVE|PAUSED`; `DELETE /templates/:id` removes.
+
+### `GET|PATCH /whatsapp/settings` (`inbox.manage`)
+
+`PATCH` body: `{ enabled?, provider: "demo|meta", phoneNumberId?, verifyToken?, token? }`. `GET` returns `{ enabled, provider, phoneNumberId, hasToken, verifyToken }` — never the token itself.
+
+### `POST /whatsapp/demo/inbound` (`inbox.send`)
+
+Demo-only inbound simulator. `{ "from": "919876543210", "body": "…", "type"?: "TEXT|MEDIA", "mediaUrl"?, "mediaType"? }` → `201 { data: { received, conversationId, normalizedFrom } }`.
+
+### Meta webhook (public, raw body, signed)
+
+- `GET /api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=…&hub.challenge=…` — verify handshake (matches the org's configured verify token, constant-time).
+- `POST /api/webhooks/whatsapp` — signed events (`X-Hub-Signature-256`, HMAC-SHA256 over the raw body). Resolves the org from the payload's `phone_number_id`; messages and statuses (`SENT/DELIVERED/READ/FAILED`) are applied idempotently by provider message id. Always answers 200 so the provider stops retrying; replays are acknowledged, never duplicated.
+
+The same path also serves the generic lead-capture webhook: requests **without** `X-Hub-Signature-256` fall through to `POST /webhooks/:source` with `x-webhook-secret`.
+
 ## Reports & analytics
 
 ### `GET /reports?from=&to=` → `200 { data: { range, cards, charts } }`

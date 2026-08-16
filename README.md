@@ -45,13 +45,14 @@ This is an **original product** (demo brand "PRIMELEAD AI") inspired by the *cat
 | **Configurable GST** — per-org rate set + default (Settings → Tax), 15-char GSTIN validation on every document | ✅ |
 | **E-invoice / e-way bill** — adapter interfaces in `server/src/integrations/gst/` ready for a verified provider (**IMPLEMENTATION REQUIRED**, nothing faked) | ⏳ |
 | **Integrations & webhooks** — connect WhatsApp/Facebook/IndiaMART/Shopify/Zapier/API, unique webhook secret + URL, secret-verified inbound lead pipeline | ✅ |
+| **WhatsApp shared inbox** — provider abstraction (demo + Meta Graph API), two-pane team inbox, inbound dedupe by provider message id, phone-based lead linking, outbound text/template sends with `{{1}}` params, delivery/read/status webhooks, assign/close/labels, unread counts, template catalog, demo inbound simulator, write-only provider keys, signed webhook handshake (`X-Hub-Signature-256`) | ✅ |
 | **Reports** — date-range analytics: source/owner/status, daily trend, conversion & win rates, revenue, CSV export | ✅ |
 | **Billing & subscriptions** — config-driven plans with usage limits, monthly/yearly, trial → active → past-due lifecycle, cancel-at-period-end, provider-agnostic (Razorpay/Stripe/Cashfree adapters + demo) | ✅ |
 | **Payments** — hosted checkout creation, HMAC webhook signature verification (Razorpay/Stripe/Cashfree schemes), idempotent event processing, refunds, amount-mismatch rejection; a payment is only ever settled by a verified server-side webhook | ✅ |
 | **Usage limits** — Plan-table-driven caps (users/leads, 0 = unlimited) enforced at the service layer across manual, QR, webhook and invite entry points | ✅ |
 | **Contacts** — customer directory with search, tags, lead links | ✅ |
 | **Super-admin console** (`/admin`) — platform overview, all organizations, user management, suspend/activate + plan changes, system diagnostics + live error feed (gated by `SUPER_ADMIN_EMAILS`) | ✅ |
-| Automated tests (**102 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, MFA, sessions, account lock, RBAC, teams, request-ids, paise money, multi-pipeline, win/lost lifecycle, recurring follow-ups, **plus Phase 4/5: credit/debit notes, receipts, GST config, refunds, renewal, reconciliation** | ✅ |
+| Automated tests (**113 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, MFA, sessions, account lock, RBAC, teams, request-ids, paise money, multi-pipeline, win/lost lifecycle, recurring follow-ups, credit/debit notes, receipts, GST config, refunds, renewal, reconciliation, **plus Phase 6: WhatsApp provider settings, hub handshake, inbound lead linking, webhook dedupe/idempotency, outbound + templates, status webhooks, assign/close, RBAC, org isolation** | ✅ |
 | **Money in paise** — integer paise everywhere (leads, quotations, invoices, notes, billing), exact GST arithmetic, converted to rupees only at the API/UI boundary | ✅ |
 | **Payments & subscriptions** — provider-agnostic (Razorpay/Stripe/Cashfree/demo), idempotent signed webhooks, app-triggered **refunds**, **renewal** with period roll-forward, **reconciliation** + CSV export | ✅ |
 | **Free tools** — QR Code Generator, GST Invoice Generator (lead magnets, no signup required) | ✅ |
@@ -140,7 +141,7 @@ Or click **Start Free** and run the onboarding wizard — it can seed realistic 
 npm run dev           # API + web together
 npm run dev:server    # API only
 npm run dev:client    # web only
-npm test              # server unit + API tests (90)
+npm test              # server unit + API tests (113)
 npm run typecheck     # server + client TypeScript checks
 npm run build         # production builds
 npm run db:seed       # reset/seed demo data
@@ -386,10 +387,10 @@ Covers: GST calculations (CGST/SGST/IGST, discounts, rounding, in paise), lead s
 
 ## 🗺 Roadmap (next)
 
-1. **Live payment providers** — add Razorpay/Stripe/Cashfree keys; adapters + webhook verification are in place, live checkout creation needs exercising against real APIs
+1. **Meta WhatsApp outbound** — the Graph API send calls are IMPLEMENTATION REQUIRED; wire real credentials and exercise them against a verified business number
 2. **Scheduled messaging** — WhatsApp/email send queue (architecture ready; gated by credentials)
-3. **Phase 3 — WhatsApp + IndiaMART/Meta adapters** — provider abstractions with webhook ingestion
-4. **Phase 4 — Security hardening** — deeper audit coverage, per-org rate-limit tuning, AI credit budgets
+3. **IndiaMART + Meta lead integrations** — lead-source adapters on top of the existing webhook + inbox plumbing
+4. **Security hardening** — deeper audit coverage, per-org rate-limit tuning, AI credit budgets
 
 ---
 

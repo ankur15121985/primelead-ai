@@ -315,3 +315,39 @@ export const contactCreateSchema = z.object({
 });
 
 export const contactUpdateSchema = contactCreateSchema.partial();
+
+// ── WhatsApp / shared inbox ────────────────────────────────────
+
+export const waSendSchema = z
+  .object({
+    body: z.string().trim().min(1).max(4000).optional(),
+    templateName: z.string().trim().min(1).max(120).optional(),
+    templateParams: z.array(z.string().max(1000)).max(10).optional(),
+    templateLanguage: z.string().trim().max(20).optional(),
+  })
+  .refine((v) => Boolean(v.body) || Boolean(v.templateName), 'Write a message or pick a template.');
+
+export const waTemplateSchema = z.object({
+  name: z.string().trim().min(1, 'Template name is required').max(120).regex(/^[a-z0-9_]+$/, 'Use lowercase letters, numbers and underscores only'),
+  category: z.enum(['UTILITY', 'MARKETING', 'AUTHENTICATION']).optional(),
+  language: z.string().trim().max(20).optional(),
+  body: z.string().trim().min(1, 'Template body is required').max(2000),
+  status: z.enum(['ACTIVE', 'PAUSED']).optional(),
+});
+
+export const waSettingsSchema = z.object({
+  enabled: z.boolean().optional(),
+  provider: z.enum(['demo', 'meta']).optional(),
+  phoneNumberId: z.string().trim().max(120).optional().nullable(),
+  verifyToken: z.string().trim().max(200).optional().nullable(),
+  // Write-only: an empty/absent value keeps the existing token, never echoes it.
+  token: z.string().trim().min(8, 'Access token must be at least 8 characters').max(500).optional(),
+});
+
+export const waDemoInboundSchema = z.object({
+  from: z.string().trim().min(5, 'Enter the customer\'s WhatsApp number (e.g. 919876543210)').max(20),
+  body: z.string().trim().min(1, 'Message body is required').max(2000).optional(),
+  type: z.enum(['TEXT', 'MEDIA']).optional(),
+  mediaUrl: z.string().trim().max(500).optional().nullable(),
+  mediaType: z.string().trim().max(40).optional().nullable(),
+});

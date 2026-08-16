@@ -32,6 +32,9 @@ function resetDb() {
   process.env.LOGIN_RATE_LIMIT = '500';
   process.env.LOGIN_MAX_ATTEMPTS = '5';
   process.env.LOGIN_LOCK_MINUTES = '15';
+  // The growing suite issues >600 requests per 15-minute window from the same
+  // test IP — raise the global API limiter like the login limiter above.
+  process.env.API_RATE_LIMIT = '100000';
   // Demo payment provider webhook signing secret.
   process.env.PAYMENT_WEBHOOK_SECRET = 'test-webhook-secret';
   execSync('npx prisma db push --skip-generate --accept-data-loss', {
@@ -1827,5 +1830,386 @@ describe('Phase 5 · renewal & reconciliation', () => {
     expect(csv.headers['content-type']).toContain('text/csv');
     expect(csv.text).toContain('Amount (₹)');
     expect(csv.text).toContain('PARTIALLY_REFUNDED');
+  });
+});
+// ────────────────────────────────────────────────────────────────────────
+// Phase 6 — WhatsApp shared inbox
+// ────────────────────────────────────────────────────────────────────────
+
+/** Build a Meta-style signed webhook body for the org's phone number. */
+async function metaWebhook(orgId: string, payload: Record<string, unknown>) {
+  const { prisma } = await import('../lib/prisma');
+  const { hmacSha256Hex } = await import('../whatsapp/provider');
+  const rawBody = JSON.stringify(payload);
+  const sig = `sha256=${hmacSha256Hex(process.env.PAYMENT_WEBHOOK_SECRET || 'test-webhook-secret', rawBody)}`;
+  const me = await prisma.orgSetting.findUnique({ where: { orgId_key: { orgId, key: 'whatsapp' } } });
+  const phoneNumberId = (me?.value as any)?.phoneNumberId;
+  return { rawBody, sig, phoneNumberId };
+}
+
+function metaMessageEvent(phoneNumberId: string, waMessageId: string, from: string, body: string) {
+  return {
+    object: 'whatsapp_business_account',
+    entry: [{
+      id: phoneNumberId,
+      changes: [{
+        field: 'messages',
+        value: {
+          messaging_product: 'whatsapp',
+          metadata: { display_phone_number: '15550001234', phone_number_id: phoneNumberId },
+          contacts: [{ profile: { name: 'Test Customer' }, wa_id: from }],
+          messages: [{ from, id: waMessageId, timestamp: String(Math.floor(Date.now() / 1000)), type: 'text', text: { body } }],
+        },
+      }],
+    }],
+  };
+}
+
+describe('Phase 6 · WhatsApp provider settings & webhook handshake', () => {
+  it('saves provider settings without echoing the token', async () => {
+    const { agent: a } = await signupFresh('Wa Owner', 'Wa Org');
+    const csrf = await getCsrf(a);
+
+    const saved = await a.patch('/api/whatsapp/settings').set('x-csrf-token', csrf).send({
+      provider: 'meta',
+      enabled: true,
+      phoneNumberId: '105612345678901',
+      verifyToken: 'verify-token-abc',
+      token: 'EAAG-super-secret-token-123456',
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body.data.settings.provider).toBe('meta');
+    expect(saved.body.data.settings.hasToken).toBe(true);
+    expect(saved.body.data.settings.phoneNumberId).toBe('105612345678901');
+    expect(JSON.stringify(saved.body.data)).not.toContain('EAAG-super-secret-token');
+
+    // reading settings never leaks the token
+    const read = await a.get('/api/whatsapp/settings');
+    expect(read.status).toBe(200);
+    expect(JSON.stringify(read.body.data)).not.toContain('EAAG-super-secret-token');
+    expect(read.body.data.settings.hasToken).toBe(true);
+
+    // empty token on update keeps the existing one
+    const keep = await a.patch('/api/whatsapp/settings').set('x-csrf-token', await getCsrf(a)).send({ provider: 'meta' });
+    expect(keep.status).toBe(200);
+    expect(keep.body.data.settings.hasToken).toBe(true);
+  });
+
+  it('answers the Meta hub verification handshake for the configured org', async () => {
+    const { agent: a } = await signupFresh('Verify Owner', 'Verify Org');
+    await a.patch('/api/whatsapp/settings').set('x-csrf-token', await getCsrf(a)).send({
+      provider: 'meta',
+      verifyToken: 'my-verify-token-1',
+      token: 'EAAG-token-abcdef-123456',
+    });
+    const res = await request(server).get('/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=my-verify-token-1&hub.challenge=12345678');
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('12345678');
+  });
+
+  it('rejects the handshake with a wrong verify token', async () => {
+    const res = await request(server).get('/api/webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=12345678');
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('Phase 6 · inbound messages, lead linking & idempotency', () => {
+  it('simulates an inbound message that creates a conversation linked to a lead', async () => {
+    const { agent: a } = await signupFresh('Inbound Owner', 'Inbound Org');
+    const csrf = await getCsrf(a);
+
+    // a lead whose phone matches the customer number (91 prefix dropped)
+    const lead = await a.post('/api/leads').set('x-csrf-token', csrf).send({
+      name: 'Ravi Sharma',
+      phone: '9812345678',
+      source: 'WEBSITE',
+    });
+    expect(lead.status).toBe(201);
+    const leadId = lead.body.data.lead.id;
+
+    const sim = await a.post('/api/whatsapp/demo/inbound').set('x-csrf-token', csrf).send({
+      from: '919812345678',
+      body: 'Hi, I need a website for my shop.',
+    });
+    expect(sim.status).toBe(201);
+    expect(sim.body.data.received).toBe(true);
+    expect(sim.body.data.normalizedFrom).toBe('919812345678');
+    const conversationId = sim.body.data.conversationId;
+
+    // conversation is linked to the lead and marked unread
+    const detail = await a.get(`/api/whatsapp/conversations/${conversationId}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.conversation.leadId).toBe(leadId);
+    expect(detail.body.data.conversation.customerName).toBe('Ravi Sharma');
+    expect(detail.body.data.conversation.unreadCount).toBe(1);
+    expect(detail.body.data.messages.length).toBe(1);
+    expect(detail.body.data.messages[0].direction).toBe('INBOUND');
+    expect(detail.body.data.messages[0].body).toContain('website');
+
+    // the timeline on the lead reflects the WhatsApp message
+    const leadDetail = await a.get(`/api/leads/${leadId}`);
+    const waActivity = leadDetail.body.data.lead.activities.find((x: any) => x.type === 'WHATSAPP');
+    expect(waActivity).toBeTruthy();
+    expect(waActivity.body).toContain('website');
+
+    // the conversation appears in the list with the preview + unread count
+    const list = await a.get('/api/whatsapp/conversations');
+    expect(list.body.data.conversations.length).toBe(1);
+    expect(list.body.data.unreadTotal).toBe(1);
+    expect(list.body.data.conversations[0].lastMessagePreview).toContain('website');
+  });
+
+  it('deduplicates a signed Meta webhook by provider message id', async () => {
+    const { agent: a } = await signupFresh('Webhook Owner', 'Webhook Org');
+    const { prisma } = await import('../lib/prisma');
+    await a.patch('/api/whatsapp/settings').set('x-csrf-token', await getCsrf(a)).send({
+      provider: 'meta',
+      phoneNumberId: '1056999888777',
+      token: 'EAAG-webhook-token-123456',
+    });
+    const me = await a.get('/api/auth/me');
+    const orgId = me.body.data.org.id;
+
+    const waMessageId = 'wamid.phase6.unique.001';
+    const event = metaMessageEvent('1056999888777', waMessageId, '919876000111', 'First webhook hello');
+    const { rawBody, sig } = await metaWebhook(orgId, event);
+
+    const fire = (replay: boolean) =>
+      request(server)
+        .post('/api/webhooks/whatsapp')
+        .set('Content-Type', 'application/json')
+        .set('x-hub-signature-256', sig)
+        .send(rawBody);
+
+    const first = await fire(false);
+    expect(first.status).toBe(200);
+    expect(first.body.data.received).toBe(true);
+
+    // fire the identical payload again (provider retry) — acknowledged, not duplicated
+    const replay = await fire(true);
+    expect(replay.status).toBe(200);
+
+    const count = await prisma.message.count({ where: { waMessageId } });
+    expect(count).toBe(1);
+
+    // the conversation has exactly one message
+    const convs = await a.get('/api/whatsapp/conversations');
+    expect(convs.body.data.conversations.length).toBe(1);
+    const convDetail = await a.get(`/api/whatsapp/conversations/${convs.body.data.conversations[0].id}`);
+    expect(convDetail.body.data.messages.length).toBe(1);
+  });
+
+  it('rejects a signed Meta webhook with a bad signature', async () => {
+    const bad = await request(server)
+      .post('/api/webhooks/whatsapp')
+      .set('Content-Type', 'application/json')
+      .set('x-hub-signature-256', 'sha256=deadbeef')
+      .send(JSON.stringify({ object: 'whatsapp_business_account', entry: [] }));
+    expect(bad.status).toBe(400);
+  });
+});
+describe('Phase 6 · outbound messages, templates & status', () => {
+  it('sends an outbound text and template message', async () => {
+    const { agent: a } = await signupFresh('Outbound Owner', 'Outbound Org');
+    const csrf = await getCsrf(a);
+
+    // seed a conversation via the demo simulator
+    await a.post('/api/whatsapp/demo/inbound').set('x-csrf-token', csrf).send({
+      from: '919900112233',
+      body: 'Hello, pricing please?',
+    });
+    const convs = await a.get('/api/whatsapp/conversations');
+    const conversationId = convs.body.data.conversations[0].id;
+
+    // text reply
+    const reply = await a.post(`/api/whatsapp/conversations/${conversationId}/messages`).set('x-csrf-token', csrf).send({
+      body: 'Sure — a website starts at ₹25,000. Shall I share a quote?',
+    });
+    expect(reply.status).toBe(201);
+    expect(reply.body.data.sent).toBe(true);
+
+    const detail = await a.get(`/api/whatsapp/conversations/${conversationId}`);
+    expect(detail.body.data.messages.length).toBe(2);
+    const outbound = detail.body.data.messages.find((m: any) => m.direction === 'OUTBOUND');
+    expect(outbound.status).toBe('SENT');
+    expect(outbound.body).toContain('₹25,000');
+    expect(detail.body.data.conversation.lastMessagePreview).toContain('₹25,000');
+
+    // template message with params
+    const tmpl = await a.post('/api/whatsapp/templates').set('x-csrf-token', csrf).send({
+      name: 'follow_up_offer',
+      category: 'UTILITY',
+      body: 'Hi {{1}}, your quote for {{2}} is ready.',
+    });
+    expect(tmpl.status).toBe(201);
+
+    const sendT = await a.post(`/api/whatsapp/conversations/${conversationId}/messages`).set('x-csrf-token', csrf).send({
+      templateName: 'follow_up_offer',
+      templateParams: ['Ravi', 'Website Design'],
+    });
+    expect(sendT.status).toBe(201);
+    expect(sendT.body.data.sent).toBe(true);
+
+    const detail2 = await a.get(`/api/whatsapp/conversations/${conversationId}`);
+    const templated = detail2.body.data.messages.find((m: any) => m.type === 'TEMPLATE');
+    expect(templated).toBeTruthy();
+    expect(templated.waTemplateName).toBe('follow_up_offer');
+    expect(templated.direction).toBe('OUTBOUND');
+
+    // duplicate template names are rejected (unique per org)
+    const dup = await a.post('/api/whatsapp/templates').set('x-csrf-token', csrf).send({
+      name: 'follow_up_offer',
+      body: 'Duplicate.',
+    });
+    expect(dup.status).toBe(409);
+  });
+
+  it('applies delivery/read status updates from the provider webhook', async () => {
+    const { agent: a } = await signupFresh('Status Owner', 'Status Org');
+    const { prisma } = await import('../lib/prisma');
+    const csrf = await getCsrf(a);
+    // demo provider so outbound sends succeed, but keep the phoneNumberId so
+    // the Meta-style status webhook can resolve this org (statuses flow through
+    // the provider webhook regardless of which adapter sends).
+    await a.patch('/api/whatsapp/settings').set('x-csrf-token', csrf).send({
+      provider: 'demo',
+      phoneNumberId: '1056000111222',
+    });
+    const me = await a.get('/api/auth/me');
+    const orgId = me.body.data.org.id;
+
+    await a.post('/api/whatsapp/demo/inbound').set('x-csrf-token', csrf).send({ from: '919877665544', body: 'Are you there?' });
+    const convs = await a.get('/api/whatsapp/conversations');
+    const conversationId = convs.body.data.conversations[0].id;
+    await a.post(`/api/whatsapp/conversations/${conversationId}/messages`).set('x-csrf-token', csrf).send({ body: 'Yes, how can I help?' });
+
+    // the demo provider assigned a real waMessageId — fetch it from the DB
+    const outbound = await prisma.message.findFirst({ where: { conversationId, direction: 'OUTBOUND' } });
+    expect(outbound?.waMessageId).toBeTruthy();
+
+    const statusEvent = (status: string) => ({
+      object: 'whatsapp_business_account',
+      entry: [{
+        id: '1056000111222',
+        changes: [{
+          field: 'messages',
+          value: {
+            messaging_product: 'whatsapp',
+            metadata: { display_phone_number: '15550001234', phone_number_id: '1056000111222' },
+            statuses: [{
+              id: outbound!.waMessageId,
+              status,
+              timestamp: String(Math.floor(Date.now() / 1000)),
+              recipient_id: '919877665544',
+            }],
+          },
+        }],
+      }],
+    });
+
+    const fire = async (payload: Record<string, unknown>) => {
+      const { hmacSha256Hex } = await import('../whatsapp/provider');
+      const rawBody = JSON.stringify(payload);
+      const sig = `sha256=${hmacSha256Hex(process.env.PAYMENT_WEBHOOK_SECRET || 'test-webhook-secret', rawBody)}`;
+      return request(server)
+        .post('/api/webhooks/whatsapp')
+        .set('Content-Type', 'application/json')
+        .set('x-hub-signature-256', sig)
+        .send(rawBody);
+    };
+
+    expect((await fire(statusEvent('DELIVERED'))).status).toBe(200);
+    expect((await fire(statusEvent('READ'))).status).toBe(200);
+
+    const after = await prisma.message.findUnique({ where: { id: outbound!.id } });
+    expect(after?.status).toBe('READ');
+    expect(after?.deliveredAt).toBeTruthy();
+    expect(after?.readAt).toBeTruthy();
+  });
+
+  it('assigns, closes, reopens and marks conversations read', async () => {
+    const { agent: a } = await signupFresh('Assign Owner', 'Assign Org');
+    const csrf = await getCsrf(a);
+    await a.post('/api/whatsapp/demo/inbound').set('x-csrf-token', csrf).send({ from: '919811223344', body: 'Need support.' });
+    const convs = await a.get('/api/whatsapp/conversations');
+    const conversationId = convs.body.data.conversations[0].id;
+
+    // assign to self (the owner)
+    const me = await a.get('/api/auth/me');
+    const ownerId = me.body.data.user.id;
+    const assigned = await a.patch(`/api/whatsapp/conversations/${conversationId}`).set('x-csrf-token', csrf).send({ assigneeId: ownerId });
+    expect(assigned.status).toBe(200);
+    expect(assigned.body.data.conversation.assigneeId).toBe(ownerId);
+
+    // mark read clears the unread count
+    const read = await a.post(`/api/whatsapp/conversations/${conversationId}/read`).set('x-csrf-token', csrf).send({});
+    expect(read.status).toBe(200);
+    const afterRead = await a.get(`/api/whatsapp/conversations/${conversationId}`);
+    expect(afterRead.body.data.conversation.unreadCount).toBe(0);
+
+    // close then reopen
+    const closed = await a.patch(`/api/whatsapp/conversations/${conversationId}`).set('x-csrf-token', csrf).send({ status: 'CLOSED' });
+    expect(closed.body.data.conversation.status).toBe('CLOSED');
+    const open = await a.patch(`/api/whatsapp/conversations/${conversationId}`).set('x-csrf-token', csrf).send({ status: 'OPEN' });
+    expect(open.body.data.conversation.status).toBe('OPEN');
+
+    // assigning to a user from another org is rejected
+    const other = await signupFresh('Other Org Owner', 'Other Org');
+    const otherMe = await other.agent.get('/api/auth/me');
+    const badAssign = await a.patch(`/api/whatsapp/conversations/${conversationId}`).set('x-csrf-token', await getCsrf(a)).send({ assigneeId: otherMe.body.data.user.id });
+    expect(badAssign.status).toBe(400);
+  });
+
+  it('enforces RBAC — viewers cannot send or manage conversations', async () => {
+    const { agent: a } = await signupFresh('Rbac Wa Owner', 'Rbac Wa Org');
+    const viewerEmail = 'waviewer@test.com';
+    await a.post('/api/team').set('x-csrf-token', await getCsrf(a)).send({
+      name: 'Wa Viewer',
+      email: viewerEmail,
+      role: 'VIEWER',
+      password: 'StrongPass123',
+    });
+    const csrf = await getCsrf(a);
+    await a.post('/api/whatsapp/demo/inbound').set('x-csrf-token', csrf).send({ from: '919800001111', body: 'Hello?' });
+    const convs = await a.get('/api/whatsapp/conversations');
+    const conversationId = convs.body.data.conversations[0].id;
+
+    const viewer = request.agent(server);
+    await loginAs(viewer, viewerEmail, 'StrongPass123');
+
+    // viewer can read the inbox
+    expect((await viewer.get('/api/whatsapp/conversations')).status).toBe(200);
+    expect((await viewer.get(`/api/whatsapp/conversations/${conversationId}`)).status).toBe(200);
+
+    // viewer cannot send
+    const send = await viewer.post(`/api/whatsapp/conversations/${conversationId}/messages`).set('x-csrf-token', await getCsrf(viewer)).send({ body: 'hi' });
+    expect(send.status).toBe(403);
+
+    // viewer cannot assign
+    const assign = await viewer.patch(`/api/whatsapp/conversations/${conversationId}`).set('x-csrf-token', await getCsrf(viewer)).send({ status: 'CLOSED' });
+    expect(assign.status).toBe(403);
+
+    // viewer cannot manage templates
+    const tmpl = await viewer.post('/api/whatsapp/templates').set('x-csrf-token', await getCsrf(viewer)).send({ name: 'nope', body: 'nope' });
+    expect(tmpl.status).toBe(403);
+  });
+  it('keeps conversations org-isolated', async () => {
+    const { agent: a } = await signupFresh('Isolation A', 'Isolation Org A');
+    const { agent: b } = await signupFresh('Isolation B', 'Isolation Org B');
+    const csrf = await getCsrf(a);
+    await a.post('/api/whatsapp/demo/inbound').set('x-csrf-token', csrf).send({ from: '919811110000', body: 'Org A message.' });
+
+    const convsA = await a.get('/api/whatsapp/conversations');
+    const conversationId = convsA.body.data.conversations[0].id;
+
+    // org B sees an empty inbox and cannot read org A's conversation
+    const listB = await b.get('/api/whatsapp/conversations');
+    expect(listB.body.data.conversations.length).toBe(0);
+    const readB = await b.get(`/api/whatsapp/conversations/${conversationId}`);
+    expect(readB.status).toBe(404);
+
+    // org B cannot send into org A's conversation either
+    const sendB = await b.post(`/api/whatsapp/conversations/${conversationId}/messages`).set('x-csrf-token', await getCsrf(b)).send({ body: 'sneak' });
+    expect(sendB.status).toBe(404);
   });
 });
