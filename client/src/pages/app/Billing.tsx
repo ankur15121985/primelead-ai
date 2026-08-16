@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { CreditCard, Check, Zap, Calendar, BadgeCheck, ExternalLink, FlaskConical, Users, UserRound } from 'lucide-react';
-import { useBilling, useUpgradePlan, useCancelSubscription, useCheckPayment, useCompleteDemoPayment } from '@/hooks/queries';
+import { CreditCard, Check, Zap, Calendar, BadgeCheck, ExternalLink, FlaskConical, Users, UserRound, RotateCcw, Undo2, Download, PieChart } from 'lucide-react';
+import { useBilling, useUpgradePlan, useCancelSubscription, useCheckPayment, useCompleteDemoPayment, useRefundPayment, useRenewDemo, useReconciliation, downloadPaymentsCsv } from '@/hooks/queries';
 import { useToast } from '@/hooks/use-toast';
-import { friendlyError } from '@/hooks/use-auth';
+import { friendlyError, useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,11 @@ export function Billing() {
   const { data, isLoading } = useBilling();
   const upgrade = useUpgradePlan();
   const cancel = useCancelSubscription();
+  const refund = useRefundPayment();
+  const renew = useRenewDemo();
+  const { data: recon } = useReconciliation();
+  const { user } = useAuth();
+  const isManager = ['OWNER', 'ADMIN', 'MANAGER'].includes(user?.role || '');
   const { success, error } = useToast();
   const [period, setPeriod] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
 
@@ -70,6 +75,32 @@ export function Billing() {
     }
   };
 
+  const handleRefund = async (paymentId: string, maxAmount: number) => {
+    const raw = window.prompt(`Refund amount (₹)? Maximum ${inr(maxAmount)}`, String(maxAmount));
+    if (raw === null) return;
+    const amount = Number(raw);
+    if (Number.isNaN(amount) || amount <= 0) {
+      error('Invalid amount', 'Enter a refund amount in rupees.');
+      return;
+    }
+    try {
+      await refund.mutateAsync({ paymentId, amount });
+      success('Refund processed', `${inr(amount)} refunded through the provider.`);
+    } catch (err) {
+      error('Refund failed', friendlyError(err));
+    }
+  };
+
+  const handleRenew = async () => {
+    if (!window.confirm('Simulate the next billing period\u2019s payment? Your subscription\u2019s end date rolls forward.')) return;
+    try {
+      const res = await renew.mutateAsync();
+      success('Renewed', `Payment of ${inr(res.amount)} captured — active until ${new Date(res.endsAt!).toLocaleDateString('en-IN')}.`);
+    } catch (err) {
+      error('Renewal failed', friendlyError(err));
+    }
+  };
+
   const handleCancel = async () => {
     const atPeriodEnd = window.confirm('Cancel at the end of the billing period? You keep access until then.\n\nClick "OK" to cancel at period end, or "Cancel" to not cancel.');
     if (!atPeriodEnd) return;
@@ -117,6 +148,11 @@ export function Billing() {
         </div>
         <div className="flex items-center gap-2">
           {statusBadge()}
+          {isDemo && subscription?.status === 'ACTIVE' && (
+            <Button variant="outline" size="sm" onClick={handleRenew} loading={renew.isPending} title="Simulate the next period's payment">
+              <RotateCcw className="h-3.5 w-3.5" /> Renew (demo)
+            </Button>
+          )}
           {subscription && !subscription.cancelAtPeriodEnd && (
             <Button variant="outline" size="sm" onClick={handleCancel}>Cancel</Button>
           )}
@@ -222,6 +258,11 @@ export function Billing() {
                 <span className="flex items-center gap-2">
                   <span className="font-semibold">{inr(p.amount)}</span>
                   <Badge tone={p.status === 'SUCCEEDED' ? 'success' : p.status === 'PENDING' ? 'warning' : p.status === 'FAILED' ? 'danger' : 'muted'}>{p.status.replace('_', ' ')}</Badge>
+                  {p.status === 'SUCCEEDED' && p.refundedAmount < p.amount && isManager && (
+                    <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => handleRefund(p.id, p.amount - p.refundedAmount)} loading={refund.isPending}>
+                      <Undo2 className="h-3 w-3" /> Refund
+                    </Button>
+                  )}
                   {p.status === 'PENDING' && p.provider === 'DEMO' && (
                     <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => simulateDemoPayment(p.id)} loading={simulate.isPending}>
                       Simulate
@@ -234,11 +275,40 @@ export function Billing() {
         )}
       </Card>
 
+      {/* Reconciliation */}
+      {recon && (
+        <Card className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="flex items-center gap-2 font-semibold"><PieChart className="h-4 w-4" /> Payment reconciliation</p>
+            <Button size="sm" variant="outline" onClick={() => downloadPaymentsCsv().catch(() => error('Export failed', 'Please try again.'))}>
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </Button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Stat label="Payments" value={String(recon.totals.payments)} />
+            <Stat label="Succeeded" value={String(recon.totals.succeeded)} />
+            <Stat label="Failed" value={String(recon.totals.failed)} />
+            <Stat label="Refunds" value={String(recon.totals.refunded)} />
+            <Stat label="Collected" value={inr(recon.totals.collected)} />
+            <Stat label="Net received" value={inr(recon.totals.net)} highlight />
+          </div>
+        </Card>
+      )}
+
       {!isDemo && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <ExternalLink className="h-3.5 w-3.5" /> Upgrades open a hosted checkout; your plan activates only after our server verifies the {data.gateway.provider} webhook.
         </p>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={cn('rounded-lg border p-3', highlight && 'border-primary/40 bg-primary/5')}>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn('mt-0.5 text-lg font-bold', highlight && 'text-primary')}>{value}</p>
     </div>
   );
 }

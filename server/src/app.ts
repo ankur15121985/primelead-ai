@@ -21,6 +21,7 @@ import publicRoutes from './routes/public.routes';
 import qrRoutes from './routes/qr.routes';
 import quotationsRoutes from './routes/quotations.routes';
 import invoicesRoutes from './routes/invoices.routes';
+import { creditNotesRouter, debitNotesRouter } from './routes/note-documents.routes';
 import reportsRoutes from './routes/reports.routes';
 import integrationsRoutes from './routes/integrations.routes';
 import webhooksRoutes from './routes/webhooks.routes';
@@ -88,6 +89,8 @@ export function createApp() {
   app.use('/api/ai', aiRoutes);
   app.use('/api/quotations', quotationsRoutes);
   app.use('/api/invoices', invoicesRoutes);
+  app.use('/api/credit-notes', creditNotesRouter);
+  app.use('/api/debit-notes', debitNotesRouter);
   app.use('/api/reports', reportsRoutes);
   app.use('/api/integrations', integrationsRoutes);
   app.use('/api/billing', billingRoutes);

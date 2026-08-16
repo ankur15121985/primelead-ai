@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, User, SlidersHorizontal, Sparkles, ShieldCheck, Smartphone, Monitor, LogOut, KeyRound } from 'lucide-react';
+import { Building2, User, SlidersHorizontal, Sparkles, ShieldCheck, Smartphone, Monitor, LogOut, KeyRound, ReceiptText } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { friendlyError, useAuth } from '@/hooks/use-auth';
-import { useTeam } from '@/hooks/queries';
+import { useTeam, useGstSettings, useUpdateGstSettings } from '@/hooks/queries';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +26,67 @@ export function Settings() {
         <OrgCard />
         <AssignmentRules />
         <AiSettings />
+        <TaxSettingsCard />
         <SecurityCard />
       </div>
     </div>
+  );
+}
+
+function TaxSettingsCard() {
+  const { data } = useGstSettings();
+  const save = useUpdateGstSettings();
+  const { success, error } = useToast();
+  const [ratesText, setRatesText] = useState('');
+  const [defaultRate, setDefaultRate] = useState('18');
+
+  useEffect(() => {
+    if (data?.gst) {
+      setRatesText(data.gst.rates.join(', '));
+      setDefaultRate(String(data.gst.defaultRate));
+    }
+  }, [data]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const rates = ratesText.split(',').map((s) => Number(s.trim())).filter((n) => !Number.isNaN(n) && n >= 0 && n <= 100);
+    if (rates.length === 0) {
+      error('Enter at least one rate', 'Rates are percentages between 0 and 100.');
+      return;
+    }
+    try {
+      await save.mutateAsync({ rates: [...new Set(rates)].sort((a, b) => a - b), defaultRate: Number(defaultRate) || rates[0] });
+      success('Tax settings saved', 'The default GST rate now applies to new documents.');
+    } catch (err) {
+      error('Could not save', friendlyError(err));
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><ReceiptText className="h-4 w-4" /> Tax settings</CardTitle>
+        <CardDescription>Which GST rates your business uses. Picked per line item — this just sets the defaults.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="gst-rates">Available rates (%)</Label>
+            <Input id="gst-rates" value={ratesText} onChange={(e) => setRatesText(e.target.value)} placeholder="0, 5, 12, 18, 28" />
+            <p className="text-xs text-muted-foreground">Comma-separated percentages (0–100).</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="gst-default">Default rate (%)</Label>
+            <Select id="gst-default" value={defaultRate} onChange={(e) => setDefaultRate(e.target.value)}>
+              {(data?.gst.rates || [0, 5, 12, 18, 28]).map((r) => <option key={r} value={r}>{r}%</option>)}
+            </Select>
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit" loading={save.isPending}>Save tax settings</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 

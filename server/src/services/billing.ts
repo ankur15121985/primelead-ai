@@ -36,6 +36,15 @@ export async function resolvePlan(orgId: string) {
  * Idempotent: if the subscription is already ACTIVE on the same plan, only
  * the endsAt is rolled forward.
  */
+/**
+ * The new period starts from the current period end (renewal rolls forward),
+ * or from the payment date when the subscription was never active.
+ */
+async function nextPeriodAnchor(orgId: string, fallback: Date): Promise<Date> {
+  const sub = await prisma.subscription.findUnique({ where: { orgId }, select: { endsAt: true } });
+  return sub?.endsAt && sub.endsAt > fallback ? sub.endsAt : fallback;
+}
+
 export async function activateSubscriptionForPayment(opts: {
   orgId: string;
   planSlug: string;
@@ -45,7 +54,8 @@ export async function activateSubscriptionForPayment(opts: {
   paidAt: Date;
 }) {
   const { orgId, planSlug, planId, period, provider, paidAt } = opts;
-  const endsAt = periodEndsAt(period, paidAt);
+  const anchor = await nextPeriodAnchor(orgId, paidAt);
+  const endsAt = periodEndsAt(period, anchor);
   const subscription = await prisma.subscription.upsert({
     where: { orgId },
     create: {
@@ -157,6 +167,11 @@ export async function processPaymentEvent(provider: string, event: VerifiedEvent
         : await prisma.plan.findUnique({ where: { slug: (await prisma.organization.findUnique({ where: { id: payment.orgId }, select: { plan: true } }))?.plan.toLowerCase() || 'starter' } });
       if (!plan) throw new Error(`plan not found for org ${payment.orgId}`);
 
+      // Renewal rolls the period forward from the current end date.
+      const period: 'MONTHLY' | 'YEARLY' = (sub?.period as 'MONTHLY' | 'YEARLY') || 'MONTHLY';
+      const anchor = await nextPeriodAnchor(payment.orgId, new Date());
+      const endsAt = periodEndsAt(period, anchor);
+
       await prisma.$transaction([
         prisma.payment.update({
           where: { id: payment.id },
@@ -173,16 +188,16 @@ export async function processPaymentEvent(provider: string, event: VerifiedEvent
             orgId: payment.orgId,
             planId: plan.id,
             status: 'ACTIVE',
-            period: (sub?.period as 'MONTHLY' | 'YEARLY') || 'MONTHLY',
+            period,
             startsAt: new Date(),
-            endsAt: periodEndsAt((sub?.period as 'MONTHLY' | 'YEARLY') || 'MONTHLY', new Date()),
+            endsAt,
             provider,
           },
           update: {
             planId: plan.id,
             status: 'ACTIVE',
-            period: (sub?.period as 'MONTHLY' | 'YEARLY') || 'MONTHLY',
-            endsAt: periodEndsAt((sub?.period as 'MONTHLY' | 'YEARLY') || 'MONTHLY', new Date()),
+            period,
+            endsAt,
             provider,
             cancelAtPeriodEnd: false,
             trialEndsAt: null,

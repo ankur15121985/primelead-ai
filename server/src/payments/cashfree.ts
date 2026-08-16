@@ -21,6 +21,8 @@ import {
   type VerifyResult,
   type VerifiedEvent,
   type ProviderEventKind,
+  type RefundInput,
+  type RefundResult,
 } from './provider';
 
 const KIND_BY_TYPE: Record<string, ProviderEventKind> = {
@@ -60,6 +62,12 @@ export const cashfreeProvider: PaymentProvider = {
     // Hosted checkout requires the Cashfree JS SDK with payment_session_id
     // (IMPLEMENTATION REQUIRED — no standalone URL exists).
     return { provider: 'cashfree', mode: 'provider', checkoutUrl: null, orderId: res.json.order_id };
+  },
+
+  async refund(input: RefundInput): Promise<RefundResult> {
+    // IMPLEMENTATION REQUIRED — Cashfree Refunds API (POST /pg/orders/:id/refunds)
+    // is documented but has not been exercised against real keys.
+    throw new Error('Cashfree refunds are not implemented yet (IMPLEMENTATION REQUIRED).');
   },
 
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: Buffer): VerifyResult {

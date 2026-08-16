@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, download } from '@/lib/api';
 import type {
   AdminOrg, AdminOrgDetail, AdminOverview, AdminSystem, AiConversation, AiConversationDetail,
-  BillingData, Contact, DashboardData, Integration, IntegrationCatalogItem, Invoice, Lead, LeadDetail,
-  LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta, QrCode, QrDetail, Quotation,
-  ReportData, Task, UpgradeResult, User,
+  BillingData, Contact, CreditNote, DashboardData, DebitNote, GstSettings, Integration, IntegrationCatalogItem,
+  Invoice, Lead, LeadDetail, LeadListResponse, Notification, Pipeline, PipelineStage, PublicQrMeta,
+  QrCode, QrDetail, Quotation, Reconciliation, ReportData, Task, UpgradeResult, User,
 } from '@/types';
 
 /** All TanStack Query hooks for the app. */
@@ -572,6 +572,50 @@ export function downloadInvoicePdf(id: string) {
   return download(`/invoices/${id}/pdf`, `invoice-${id}.pdf`);
 }
 
+export function downloadInvoiceReceipt(id: string) {
+  return download(`/invoices/${id}/receipt`, `receipt-${id}.pdf`);
+}
+
+// ── Credit & debit notes ──────────────────────────────────
+export function useNotes(kind: 'credit' | 'debit') {
+  const base = kind === 'credit' ? 'credit-notes' : 'debit-notes';
+  return useQuery({
+    queryKey: [base],
+    queryFn: () =>
+      api<{ notes: (CreditNote | DebitNote)[]; counts: { issued: number; cancelled: number; totalValue: number } }>(`/${base}`),
+    staleTime: 10_000,
+  });
+}
+
+export function useCreateNote(kind: 'credit' | 'debit') {
+  const qc = useQueryClient();
+  const base = kind === 'credit' ? 'credit-notes' : 'debit-notes';
+  return useMutation({
+    mutationFn: (input: Record<string, unknown>) =>
+      api<{ note: CreditNote | DebitNote }>(`/${base}`, { body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [base] });
+      qc.invalidateQueries({ queryKey: ['invoices'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+}
+
+export function useUpdateNote(kind: 'credit' | 'debit') {
+  const qc = useQueryClient();
+  const base = kind === 'credit' ? 'credit-notes' : 'debit-notes';
+  return useMutation({
+    mutationFn: (input: { id: string; status?: string; reason?: string }) =>
+      api(`/${base}/${input.id}`, { method: 'PATCH', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [base] }),
+  });
+}
+
+export function downloadNotePdf(kind: 'credit' | 'debit', id: string) {
+  const base = kind === 'credit' ? 'credit-notes' : 'debit-notes';
+  return download(`/${base}/${id}/pdf`, `${kind}-note-${id}.pdf`);
+}
+
 // ── AI assistant ───────────────────────────────────────────
 export function useAiStatus() {
   return useQuery({
@@ -671,6 +715,57 @@ export function useBilling() {
     queryKey: ['billing'],
     queryFn: () => api<BillingData>('/billing'),
     staleTime: 30_000,
+  });
+}
+
+export function useRefundPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { paymentId: string; amount?: number; reason?: string }) =>
+      api(`/billing/payments/${input.paymentId}/refund`, { body: { amount: input.amount, reason: input.reason } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['billing'] });
+      qc.invalidateQueries({ queryKey: ['reconciliation'] });
+    },
+  });
+}
+
+export function useRenewDemo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ renewed: boolean; endsAt: string | null; amount: number }>('/billing/demo/renew', { body: {} }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['billing'] });
+    },
+  });
+}
+
+export function useReconciliation() {
+  return useQuery({
+    queryKey: ['reconciliation'],
+    queryFn: () => api<Reconciliation>('/billing/reconciliation'),
+    staleTime: 30_000,
+  });
+}
+
+export function downloadPaymentsCsv() {
+  return download('/billing/payments/export', `payments-${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
+// ── GST settings ──────────────────────────────────────────
+export function useGstSettings() {
+  return useQuery({
+    queryKey: ['gst-settings'],
+    queryFn: () => api<{ gst: GstSettings }>('/settings/gst'),
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdateGstSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: GstSettings) => api<{ saved: boolean }>('/settings/gst', { method: 'PATCH', body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['gst-settings'] }),
   });
 }
 

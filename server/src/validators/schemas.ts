@@ -158,6 +158,23 @@ export const publicQrLeadSchema = z.object({
   message: z.string().trim().max(2000).optional().nullable(),
 });
 
+// ── GST ────────────────────────────────────────────────────────
+
+/** 15-character GSTIN format (state code + PAN + entity + check char). */
+export const gstinField = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/, 'Enter a valid 15-character GSTIN (e.g. 27ABCDE1234F1Z5)')
+  .optional()
+  .nullable();
+
+/** Configurable GST rate set stored in org settings (see /settings/gst). */
+export const gstRatesSchema = z.object({
+  rates: z.array(z.coerce.number().min(0).max(100)).min(1).max(12),
+  defaultRate: z.coerce.number().min(0).max(100),
+});
+
 // ── Quotations & Invoices (GST) ────────────────────────────────
 
 export const quotationItemSchema = z.object({
@@ -173,7 +190,7 @@ export const quotationCreateSchema = z.object({
   customerName: z.string().trim().min(1, 'Customer name is required').max(120),
   company: z.string().trim().max(160).optional().nullable(),
   address: z.string().trim().max(300).optional().nullable(),
-  gstin: z.string().trim().max(20).optional().nullable(),
+  gstin: gstinField,
   phone: z.string().trim().max(20).optional().nullable(),
   email: z.string().trim().email('Enter a valid email').max(120).optional().nullable().or(z.literal('')),
   leadId: z.string().optional().nullable(),
@@ -200,7 +217,7 @@ export const invoiceCreateSchema = z.object({
   customerName: z.string().trim().min(1, 'Customer name is required').max(120),
   company: z.string().trim().max(160).optional().nullable(),
   billingAddress: z.string().trim().max(300).optional().nullable(),
-  gstin: z.string().trim().max(20).optional().nullable(),
+  gstin: gstinField,
   leadId: z.string().optional().nullable(),
   quotationId: z.string().optional().nullable(),
   items: z.array(invoiceItemSchema).min(1, 'Add at least one item'),
@@ -215,6 +232,40 @@ export const invoiceUpdateSchema = invoiceCreateSchema.partial();
 
 export const invoicePaymentSchema = z.object({
   paidAmount: z.coerce.number().min(0, 'Amount must be 0 or more').max(1e12),
+});
+
+// ── Credit & debit notes ───────────────────────────────────────
+
+export const noteItemSchema = z.object({
+  description: z.string().trim().min(1, 'Item description is required').max(300),
+  hsnSac: z.string().trim().max(20).optional().nullable(),
+  quantity: z.coerce.number().min(0.01, 'Quantity must be at least 0.01').max(1e6),
+  rate: z.coerce.number().min(0, 'Rate must be 0 or more').max(1e9),
+  discountPct: z.coerce.number().min(0).max(100).default(0),
+  taxPct: z.coerce.number().min(0).max(100).default(0),
+  gstType: z.enum(['CGST_SGST', 'IGST']).optional().default('CGST_SGST'),
+});
+
+const noteBaseSchema = z.object({
+  leadId: z.string().optional().nullable(),
+  customerName: z.string().trim().min(1, 'Customer name is required').max(120),
+  company: z.string().trim().max(160).optional().nullable(),
+  gstin: gstinField,
+  reason: z.string().trim().max(500).optional().nullable(),
+  items: z.array(noteItemSchema).min(1, 'Add at least one item'),
+  discount: z.coerce.number().min(0).max(1e9).default(0),
+  status: z.enum(['DRAFT', 'ISSUED', 'CANCELLED']).optional(),
+});
+
+export const creditNoteCreateSchema = noteBaseSchema.extend({
+  invoiceId: z.string().optional().nullable(),
+});
+
+export const debitNoteCreateSchema = noteBaseSchema;
+
+export const noteUpdateSchema = z.object({
+  status: z.enum(['DRAFT', 'ISSUED', 'CANCELLED']).optional(),
+  reason: z.string().trim().max(500).optional().nullable(),
 });
 
 // ── AI assistant chat ──────────────────────────────────────────

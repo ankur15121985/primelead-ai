@@ -7,7 +7,7 @@
  * fully exercised in dev and tests without pretending a gateway exists.
  */
 import { config } from '../config';
-import { hmacSha256Hex, safeEqual, getHeader, type PaymentProvider, type CreateCheckoutInput, type CheckoutResult, type VerifyResult, type ProviderEventKind } from './provider';
+import { hmacSha256Hex, safeEqual, getHeader, type PaymentProvider, type CreateCheckoutInput, type CheckoutResult, type VerifyResult, type ProviderEventKind, type RefundInput, type RefundResult } from './provider';
 
 function sign(body: Buffer): string {
   return hmacSha256Hex(config.payments.webhookSecret, body);
@@ -54,7 +54,9 @@ export const demoProvider: PaymentProvider = {
     return {
       valid: true,
       event: {
-        eventId: `demo:${type}:${paymentId}`,
+        // The refund discriminator keeps partial refunds on the same payment
+        // from colliding on the (provider, eventId) idempotency key.
+        eventId: `demo:${type}:${paymentId}${payload?.refundRef ? `:${payload.refundRef}` : ''}`,
         type,
         kind,
         payload,
@@ -65,6 +67,22 @@ export const demoProvider: PaymentProvider = {
         subscriptionRef: payload?.subscriptionRef,
       },
     };
+  },
+
+  async refund(input: RefundInput): Promise<RefundResult> {
+    // Simulate the provider refunding by firing a SIGNED webhook through the
+    // exact same verification + idempotency + state-machine path real gateways
+    // use — nothing is marked refunded without a verified server event.
+    const { handlePaymentWebhook } = await import('../services/billing');
+    const refundRef = `r_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const { headers, rawBody } = buildDemoWebhook('REFUND_PROCESSED', input.paymentId, {
+      amountPaise: input.amountPaise,
+      refundRef,
+      reason: input.reason || null,
+    });
+    const result = await handlePaymentWebhook('demo', headers, rawBody);
+    if (!result.ok) throw new Error(result.error || 'Refund could not be processed.');
+    return { providerRefundId: `demo_${refundRef}` };
   },
 };
 

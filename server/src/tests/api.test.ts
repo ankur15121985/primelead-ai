@@ -1566,3 +1566,266 @@ describe('Phase 3 · follow-up engine', () => {
     expect(new Date(moved.dueAt).toISOString()).toBe(tomorrow);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 4 — GST billing: credit/debit notes, receipts, GST config, GSTIN
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 4 · credit notes', () => {
+  it('creates a credit note against an invoice with GST totals and numbering', async () => {
+    const { agent: a } = await signupFresh('CN Owner', 'CN Org');
+    const csrf = await getCsrf(a);
+
+    const inv = await a.post('/api/invoices').set('x-csrf-token', csrf).send({
+      customerName: 'GST Customer',
+      company: 'Acme Pvt Ltd',
+      gstin: '27ABCDE1234F1Z5',
+      items: [{ description: 'Website design', quantity: 1, rate: 50000, taxPct: 18 }],
+    });
+    expect(inv.status).toBe(201);
+    expect(inv.body.data.invoice.number).toMatch(/^INV-\d{4}-\d{4}$/);
+
+    const cn = await a.post('/api/credit-notes').set('x-csrf-token', csrf).send({
+      invoiceId: inv.body.data.invoice.id,
+      customerName: 'GST Customer',
+      gstin: '27ABCDE1234F1Z5',
+      reason: 'Partial refund after discount',
+      items: [{ description: 'Website design correction', quantity: 1, rate: 10000, taxPct: 18 }],
+    });
+    expect(cn.status).toBe(201);
+    expect(cn.body.data.note.number).toMatch(/^CN-\d{4}-\d{4}$/);
+    expect(cn.body.data.note.invoice.number).toBe(inv.body.data.invoice.number);
+    // 10,000 + 18% GST = 11,800
+    expect(cn.body.data.note.total).toBe(11800);
+    expect(cn.body.data.note.gstSummary.cgst).toBe(900);
+    expect(cn.body.data.note.gstSummary.sgst).toBe(900);
+
+    const list = await a.get('/api/credit-notes');
+    expect(list.body.data.notes.length).toBe(1);
+
+    const pdf = await a.get(`/api/credit-notes/${cn.body.data.note.id}/pdf`);
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers['content-type']).toContain('application/pdf');
+  });
+
+  it('issues and cancels a credit note', async () => {
+    const { agent: a } = await signupFresh('CN Flow', 'CN Flow Org');
+    const csrf = await getCsrf(a);
+    const cn = await a.post('/api/credit-notes').set('x-csrf-token', csrf).send({
+      customerName: 'Flow Customer',
+      items: [{ description: 'Refund line', quantity: 1, rate: 5000, taxPct: 0 }],
+    });
+    expect(cn.status).toBe(201);
+    expect(cn.body.data.note.status).toBe('DRAFT');
+
+    const issued = await a.patch(`/api/credit-notes/${cn.body.data.note.id}`).set('x-csrf-token', csrf).send({ status: 'ISSUED' });
+    expect(issued.body.data.note.status).toBe('ISSUED');
+    expect(issued.body.data.note.issuedAt).toBeTruthy();
+
+    const cancelled = await a.patch(`/api/credit-notes/${cn.body.data.note.id}`).set('x-csrf-token', csrf).send({ status: 'CANCELLED' });
+    expect(cancelled.body.data.note.status).toBe('CANCELLED');
+
+    const reissue = await a.patch(`/api/credit-notes/${cn.body.data.note.id}`).set('x-csrf-token', csrf).send({ status: 'ISSUED' });
+    expect(reissue.status).toBe(400);
+  });
+});
+
+describe('Phase 4 · debit notes & receipts', () => {
+  it('creates a debit note with DN numbering', async () => {
+    const { agent: a } = await signupFresh('DN Owner', 'DN Org');
+    const csrf = await getCsrf(a);
+    const dn = await a.post('/api/debit-notes').set('x-csrf-token', csrf).send({
+      customerName: 'Late Payer',
+      reason: 'Interest on delayed payment',
+      items: [{ description: 'Late payment charge', quantity: 1, rate: 2000, taxPct: 18 }],
+    });
+    expect(dn.status).toBe(201);
+    expect(dn.body.data.note.number).toMatch(/^DN-\d{4}-\d{4}$/);
+    expect(dn.body.data.note.total).toBe(2360);
+
+    const pdf = await a.get(`/api/debit-notes/${dn.body.data.note.id}/pdf`);
+    expect(pdf.status).toBe(200);
+  });
+
+  it('serves a payment receipt PDF for a paid invoice only', async () => {
+    const { agent: a } = await signupFresh('Receipt Owner', 'Receipt Org');
+    const csrf = await getCsrf(a);
+    const inv = await a.post('/api/invoices').set('x-csrf-token', csrf).send({
+      customerName: 'Receipt Customer',
+      items: [{ description: 'Service', quantity: 1, rate: 10000, taxPct: 0 }],
+    });
+    const id = inv.body.data.invoice.id;
+
+    // no payment yet → 400
+    const early = await a.get(`/api/invoices/${id}/receipt`);
+    expect(early.status).toBe(400);
+
+    await a.post(`/api/invoices/${id}/payment`).set('x-csrf-token', csrf).send({ paidAmount: 10000 });
+    const receipt = await a.get(`/api/invoices/${id}/receipt`);
+    expect(receipt.status).toBe(200);
+    expect(receipt.headers['content-type']).toContain('application/pdf');
+  });
+
+  it('keeps notes org-isolated', async () => {
+    const { agent: a } = await signupFresh('CN Iso A', 'CN Iso A Org');
+    const { agent: b } = await signupFresh('CN Iso B', 'CN Iso B Org');
+    const csrfA = await getCsrf(a);
+    const cn = await a.post('/api/credit-notes').set('x-csrf-token', csrfA).send({
+      customerName: 'Isolated',
+      items: [{ description: 'X', quantity: 1, rate: 100, taxPct: 0 }],
+    });
+    const csrfB = await getCsrf(b);
+    const other = await b.get(`/api/credit-notes/${cn.body.data.note.id}`).set('x-csrf-token', csrfB);
+    expect(other.status).toBe(404);
+  });
+});
+
+describe('Phase 4 · GST configuration & validation', () => {
+  it('exposes default GST rates and saves org-specific ones', async () => {
+    const { agent: a } = await signupFresh('GST Owner', 'GST Org');
+    const csrf = await getCsrf(a);
+    const initial = await a.get('/api/settings/gst');
+    expect(initial.status).toBe(200);
+    expect(initial.body.data.gst.rates).toEqual([0, 5, 12, 18, 28]);
+    expect(initial.body.data.gst.defaultRate).toBe(18);
+
+    const saved = await a.patch('/api/settings/gst').set('x-csrf-token', csrf).send({ rates: [0, 5, 18], defaultRate: 5 });
+    expect(saved.status).toBe(200);
+
+    const after = await a.get('/api/settings/gst');
+    expect(after.body.data.gst.rates).toEqual([0, 5, 18]);
+    expect(after.body.data.gst.defaultRate).toBe(5);
+  });
+
+  it('rejects an invalid GSTIN format', async () => {
+    const { agent: a } = await signupFresh('GSTIN Owner', 'GSTIN Org');
+    const csrf = await getCsrf(a);
+    const bad = await a.post('/api/invoices').set('x-csrf-token', csrf).send({
+      customerName: 'Bad GSTIN',
+      gstin: 'NOT-A-GSTIN',
+      items: [{ description: 'X', quantity: 1, rate: 100, taxPct: 0 }],
+    });
+    expect(bad.status).toBe(422);
+    expect(bad.body.error.message.toLowerCase()).toContain('gstin');
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 5 — refunds, renewal, reconciliation
+// ────────────────────────────────────────────────────────────────────────
+
+describe('Phase 5 · payment refunds', () => {
+  it('refunds a succeeded demo payment through the signed webhook path', async () => {
+    const { agent: a } = await signupFresh('Refund Owner', 'Refund Org');
+    const csrf = await getCsrf(a);
+
+    // Activate the growth plan in demo mode, then settle it.
+    const up = await a.post('/api/billing/upgrade').set('x-csrf-token', csrf).send({ planSlug: 'growth', period: 'MONTHLY' });
+    expect(up.status).toBe(200);
+    const pending = (await a.get('/api/billing')).body.data.payments.find((p: any) => p.status === 'PENDING');
+    expect(pending).toBeTruthy();
+    await a.post('/api/billing/demo/complete').set('x-csrf-token', csrf).send({ paymentId: pending.id });
+
+    const billing = await a.get('/api/billing');
+    const paid = billing.body.data.payments.find((p: any) => p.status === 'SUCCEEDED');
+    expect(paid).toBeTruthy();
+
+    // Full refund → REFUNDED
+    const refunded = await a.post(`/api/billing/payments/${paid.id}/refund`).set('x-csrf-token', csrf).send({});
+    expect(refunded.status).toBe(200);
+
+    const after = await a.get('/api/billing');
+    const paidAfter = after.body.data.payments.find((p: any) => p.id === paid.id);
+    expect(paidAfter.status).toBe('REFUNDED');
+    expect(paidAfter.refundedAmount).toBe(paid.amount);
+
+    // Refunding again is blocked (nothing refundable left)
+    const again = await a.post(`/api/billing/payments/${paid.id}/refund`).set('x-csrf-token', csrf).send({});
+    expect(again.status).toBe(400);
+  });
+
+  it('supports partial refunds and rejects over-refunds', async () => {
+    const { agent: a } = await signupFresh('Partial Owner', 'Partial Org');
+    const csrf = await getCsrf(a);
+    await a.post('/api/billing/upgrade').set('x-csrf-token', csrf).send({ planSlug: 'growth', period: 'MONTHLY' });
+    const pending = (await a.get('/api/billing')).body.data.payments.find((p: any) => p.status === 'PENDING');
+    await a.post('/api/billing/demo/complete').set('x-csrf-token', csrf).send({ paymentId: pending.id });
+    const paid = (await a.get('/api/billing')).body.data.payments.find((p: any) => p.status === 'SUCCEEDED');
+
+    // Partial refund of half
+    const half = await a.post(`/api/billing/payments/${paid.id}/refund`).set('x-csrf-token', csrf).send({ amount: paid.amount / 2 });
+    expect(half.status).toBe(200);
+    let after = await a.get('/api/billing');
+    let p = after.body.data.payments.find((x: any) => x.id === paid.id);
+    expect(p.status).toBe('PARTIALLY_REFUNDED');
+    expect(p.refundedAmount).toBe(paid.amount / 2);
+
+    // Over-refund rejected
+    const over = await a.post(`/api/billing/payments/${paid.id}/refund`).set('x-csrf-token', csrf).send({ amount: paid.amount });
+    expect(over.status).toBe(400);
+
+    // Refunding an unsettled payment is blocked
+    await a.post('/api/billing/upgrade').set('x-csrf-token', csrf).send({ planSlug: 'business', period: 'MONTHLY' });
+    const pending2 = (await a.get('/api/billing')).body.data.payments.find((x: any) => x.status === 'PENDING');
+    const blocked = await a.post(`/api/billing/payments/${pending2.id}/refund`).set('x-csrf-token', csrf).send({});
+    expect(blocked.status).toBe(400);
+    void after; void p;
+  });
+});
+
+describe('Phase 5 · renewal & reconciliation', () => {
+  it('rolls the subscription end date forward on renewal', async () => {
+    const { agent: a } = await signupFresh('Renew Owner', 'Renew Org');
+    const csrf = await getCsrf(a);
+    await a.post('/api/billing/upgrade').set('x-csrf-token', csrf).send({ planSlug: 'growth', period: 'MONTHLY' });
+    const pending = (await a.get('/api/billing')).body.data.payments.find((p: any) => p.status === 'PENDING');
+    await a.post('/api/billing/demo/complete').set('x-csrf-token', csrf).send({ paymentId: pending.id });
+
+    const before = (await a.get('/api/billing')).body.data.subscription;
+    expect(before.status).toBe('ACTIVE');
+
+    const renewed = await a.post('/api/billing/demo/renew').set('x-csrf-token', csrf).send({});
+    expect(renewed.status).toBe(200);
+    expect(renewed.body.data.renewed).toBe(true);
+
+    const after = (await a.get('/api/billing')).body.data;
+    expect(after.subscription.status).toBe('ACTIVE');
+    // endsAt moved ~1 month forward
+    const days = (new Date(after.subscription.endsAt).getTime() - new Date(before.endsAt).getTime()) / (24 * 60 * 60 * 1000);
+    expect(days).toBeGreaterThan(27);
+    expect(days).toBeLessThan(32);
+    // A new settlement appeared for the renewed period
+    expect(after.payments.filter((p: any) => p.status === 'SUCCEEDED').length).toBe(2);
+  });
+
+  it('rejects renewal without an active subscription', async () => {
+    const { agent: a } = await signupFresh('NoRenew Owner', 'NoRenew Org');
+    const csrf = await getCsrf(a);
+    const res = await a.post('/api/billing/demo/renew').set('x-csrf-token', csrf).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('reports reconciliation totals and exports CSV', async () => {
+    const { agent: a } = await signupFresh('Recon Owner', 'Recon Org');
+    const csrf = await getCsrf(a);
+    await a.post('/api/billing/upgrade').set('x-csrf-token', csrf).send({ planSlug: 'growth', period: 'MONTHLY' });
+    const pending = (await a.get('/api/billing')).body.data.payments.find((p: any) => p.status === 'PENDING');
+    await a.post('/api/billing/demo/complete').set('x-csrf-token', csrf).send({ paymentId: pending.id });
+    const paid = (await a.get('/api/billing')).body.data.payments.find((p: any) => p.status === 'SUCCEEDED');
+    await a.post(`/api/billing/payments/${paid.id}/refund`).set('x-csrf-token', csrf).send({ amount: paid.amount / 2 });
+
+    const recon = await a.get('/api/billing/reconciliation');
+    expect(recon.status).toBe(200);
+    expect(recon.body.data.totals.succeeded).toBe(1);
+    expect(recon.body.data.totals.refunded).toBe(1);
+    expect(recon.body.data.totals.collected).toBe(paid.amount);
+    expect(recon.body.data.totals.refundedAmount).toBe(paid.amount / 2);
+    expect(recon.body.data.totals.net).toBe(paid.amount / 2);
+
+    const csv = await a.get('/api/billing/payments/export');
+    expect(csv.status).toBe(200);
+    expect(csv.headers['content-type']).toContain('text/csv');
+    expect(csv.text).toContain('Amount (₹)');
+    expect(csv.text).toContain('PARTIALLY_REFUNDED');
+  });
+});

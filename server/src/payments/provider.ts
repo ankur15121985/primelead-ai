@@ -73,11 +73,31 @@ export interface CheckoutResult {
   orderId?: string;
 }
 
+export interface RefundInput {
+  orgId: string;
+  /** Our internal Payment row id. */
+  paymentId: string;
+  /** Provider payment id (charge) being refunded. */
+  providerPaymentId?: string | null;
+  /** Amount in paise to refund (partial refunds supported). */
+  amountPaise: number;
+  reason?: string;
+}
+
+export interface RefundResult {
+  providerRefundId?: string;
+}
+
 export interface PaymentProvider {
   name: string;
   /** True when real credentials are configured (demo is never "configured"). */
   configured: boolean;
   createCheckout(input: CreateCheckoutInput): Promise<CheckoutResult>;
+  /**
+   * Refund a payment (full or partial). Only the demo adapter is live; real
+   * gateways are IMPLEMENTATION REQUIRED until exercised against their APIs.
+   */
+  refund(input: RefundInput): Promise<RefundResult>;
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: Buffer): VerifyResult;
 }
 

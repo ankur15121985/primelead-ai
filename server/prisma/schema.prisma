@@ -38,6 +38,8 @@ model Organization {
   pipelines    Pipeline[]
   quotations   Quotation[]
   invoices     Invoice[]
+  creditNotes  CreditNote[]
+  debitNotes   DebitNote[]
   integrations Integration[]
   qrCodes      QrCode[]
   campaigns    Campaign[]
@@ -147,6 +149,8 @@ model Lead {
   tasks      Task[]
   quotations Quotation[]
   invoices   Invoice[]
+  creditNotes CreditNote[]
+  debitNotes  DebitNote[]
   contacts   Contact[]
   qrScans    QrScan[]
 
@@ -390,6 +394,7 @@ model Invoice {
   billingAddress String?
   gstin          String?
   hsnSac         String?
+  creditNotes    CreditNote[]
   items          InvoiceItem[]
   discount       Int          @default(0) // paise
   gstSummary     Json? // { cgst, sgst, igst } — paise
@@ -421,6 +426,96 @@ model InvoiceItem {
   igst      Int     @default(0) // paise
   amount    Int     @default(0) // paise
   createdAt DateTime @default(now())
+}
+
+// Credit note — issued against an invoice for returns, corrections or
+// discounts given after invoicing (reduces the amount owed / collected).
+model CreditNote {
+  id             String           @id @default(cuid())
+  orgId          String
+  org            Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  number         String
+  invoiceId      String?
+  invoice        Invoice?         @relation(fields: [invoiceId], references: [id])
+  leadId         String?
+  lead           Lead?            @relation(fields: [leadId], references: [id])
+  customerName   String
+  company        String?
+  gstin          String?
+  reason         String? // why the note was issued
+  items          CreditNoteItem[]
+  discount       Int              @default(0) // paise
+  gstSummary     Json? // { cgst, sgst, igst } — paise
+  subtotal       Int              @default(0) // paise
+  total          Int              @default(0) // paise
+  status         String           @default("DRAFT") // DRAFT | ISSUED | CANCELLED
+  issuedAt       DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([orgId, number])
+  @@index([orgId, status])
+}
+
+model CreditNoteItem {
+  id           String     @id @default(cuid())
+  creditNoteId String
+  creditNote   CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  description  String
+  hsnSac       String?
+  quantity     Float      @default(1)
+  rate         Int        @default(0) // paise
+  discountPct  Float      @default(0)
+  taxPct       Float      @default(0)
+  cgst         Int        @default(0) // paise
+  sgst         Int        @default(0) // paise
+  igst         Int        @default(0) // paise
+  amount       Int        @default(0) // paise
+  createdAt    DateTime   @default(now())
+}
+
+// Debit note — issued to a customer for additional charges, short payments
+// or corrections that increase the amount owed.
+model DebitNote {
+  id           String          @id @default(cuid())
+  orgId        String
+  org          Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  number       String
+  leadId       String?
+  lead         Lead?           @relation(fields: [leadId], references: [id])
+  customerName String
+  company      String?
+  gstin        String?
+  reason       String?
+  items        DebitNoteItem[]
+  discount     Int             @default(0) // paise
+  gstSummary   Json? // { cgst, sgst, igst } — paise
+  subtotal     Int             @default(0) // paise
+  total        Int             @default(0) // paise
+  status       String          @default("DRAFT") // DRAFT | ISSUED | CANCELLED
+  issuedAt     DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([orgId, number])
+  @@index([orgId, status])
+}
+
+model DebitNoteItem {
+  id          String    @id @default(cuid())
+  debitNoteId String
+  debitNote   DebitNote @relation(fields: [debitNoteId], references: [id], onDelete: Cascade)
+  description String
+  hsnSac      String?
+  quantity    Float     @default(1)
+  rate        Int       @default(0) // paise
+  discountPct Float     @default(0)
+  taxPct      Float     @default(0)
+  cgst        Int       @default(0) // paise
+  sgst        Int       @default(0) // paise
+  igst        Int       @default(0) // paise
+  amount      Int       @default(0) // paise
+  createdAt   DateTime  @default(now())
 }
 
 // ────────────────────────────────────────────────────────────

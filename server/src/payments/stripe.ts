@@ -22,6 +22,8 @@ import {
   type VerifyResult,
   type VerifiedEvent,
   type ProviderEventKind,
+  type RefundInput,
+  type RefundResult,
 } from './provider';
 
 const API = 'https://api.stripe.com/v1';
@@ -89,6 +91,12 @@ export const stripeProvider: PaymentProvider = {
     });
     if (!res.ok) throw new Error(`Stripe checkout creation failed (${res.status}).`);
     return { provider: 'stripe', mode: 'provider', checkoutUrl: res.json.url || null, orderId: res.json.id };
+  },
+
+  async refund(input: RefundInput): Promise<RefundResult> {
+    // IMPLEMENTATION REQUIRED — Stripe Refunds API (POST /v1/refunds) is
+    // documented but has not been exercised against real keys.
+    throw new Error('Stripe refunds are not implemented yet (IMPLEMENTATION REQUIRED).');
   },
 
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: Buffer): VerifyResult {

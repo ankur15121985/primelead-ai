@@ -379,6 +379,38 @@ export interface Invoice {
   updatedAt: string;
 }
 
+interface NoteBase {
+  id: string;
+  number: string;
+  leadId: string | null;
+  lead: { id: string; name: string } | null;
+  customerName: string;
+  company: string | null;
+  gstin: string | null;
+  reason: string | null;
+  items: DocumentItem[];
+  discount: number;
+  gstSummary: { cgst: number; sgst: number; igst: number };
+  subtotal: number;
+  total: number;
+  status: string; // DRAFT | ISSUED | CANCELLED
+  issuedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreditNote extends NoteBase {
+  invoiceId: string | null;
+  invoice: { id: string; number: string } | null;
+}
+
+export interface DebitNote extends NoteBase {}
+
+export interface GstSettings {
+  rates: number[];
+  defaultRate: number;
+}
+
 export interface AiConversation {
   id: string;
   topic: string | null;
@@ -477,6 +509,28 @@ export interface BillingData {
     createdAt: string;
   }>;
   gateway: { configured: boolean; provider: string | null; mode: 'demo' | 'provider' };
+}
+
+export interface Reconciliation {
+  range: { from: string | null; to: string | null };
+  totals: {
+    payments: number;
+    succeeded: number;
+    failed: number;
+    refunded: number;
+    collected: number;
+    refundedAmount: number;
+    net: number;
+  };
+  payments: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    provider: string | null;
+    refundedAmount: number;
+    paidAt: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface UpgradeResult {

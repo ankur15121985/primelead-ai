@@ -20,7 +20,7 @@ import { requireAuth, requirePermission, assertAdminOrAbove, type AuthedRequest 
 import { billingUpgradeSchema } from '../validators/schemas';
 import { audit } from '../lib/audit';
 import { config } from '../config';
-import { paiseToRupees } from '../lib/money';
+import { paiseToRupees, rupeesToPaise } from '../lib/money';
 import { getPaymentProvider } from '../payments/provider';
 import { buildDemoWebhook } from '../payments/demo';
 import {
@@ -215,6 +215,27 @@ router.post(
   })
 );
 
+/** Payment history export (CSV) — must precede /payments/:id. */
+router.get(
+  '/payments/export',
+  requirePermission('billing.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const payments = await prisma.payment.findMany({ where: { orgId: user.orgId }, orderBy: { createdAt: 'desc' }, take: 5000 });
+    const esc = (v: unknown) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = ['Date', 'Amount (₹)', 'Status', 'Provider', 'Refunded (₹)', 'Paid At'];
+    const lines = payments.map((p) =>
+      [p.createdAt.toISOString(), paiseToRupees(p.amount), p.status, p.provider, paiseToRupees(p.refundedAmount), p.paidAt?.toISOString() || ''].map(esc).join(',')
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="payments-${Date.now()}.csv"`);
+    res.send([header.join(','), ...lines].join('\r\n'));
+  })
+);
+
 /** Poll a payment's status (used after redirecting to a provider checkout). */
 router.get(
   '/payments/:id',
@@ -261,6 +282,118 @@ router.post(
     if (!result.ok) throw Object.assign(new Error(result.error || 'Simulation failed.'), { status: 400 });
     await audit({ orgId: user.orgId, userId: user.id, action: 'DEMO_PAYMENT_SIMULATED', entity: 'Payment', entityId: payment.id, metadata: { kind: input.kind }, req });
     return ok(res, { simulated: true, duplicate: result.duplicate });
+  })
+);
+
+/**
+ * Refund a payment (full or partial). The provider abstraction decides how:
+ * the demo adapter fires a signed REFUND_PROCESSED webhook through the real
+ * pipeline; live gateways are IMPLEMENTATION REQUIRED until exercised.
+ */
+router.post(
+  '/payments/:id/refund',
+  requirePermission('billing.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    assertAdminOrAbove(user);
+    const input = validate(
+      z.object({ amount: z.coerce.number().min(0.01, 'Refund amount must be more than 0').max(1e12).optional(), reason: z.string().trim().max(200).optional() }),
+      req.body
+    );
+    const payment = await prisma.payment.findFirst({ where: { id: req.params.id, orgId: user.orgId } });
+    if (!payment) throw notFound('Payment not found');
+    if (payment.status !== 'SUCCEEDED') throw badRequest('Only settled payments can be refunded.');
+
+    const refundPaise = input.amount !== undefined ? rupeesToPaise(input.amount) : payment.amount;
+    const refundable = payment.amount - payment.refundedAmount;
+    if (refundPaise <= 0) throw badRequest('Refund amount must be more than 0.');
+    if (refundPaise > refundable) throw badRequest(`The maximum refundable amount is ${paiseToRupees(refundable)}.`);
+
+    const provider = getPaymentProvider();
+    try {
+      await provider.refund({
+        orgId: user.orgId,
+        paymentId: payment.id,
+        providerPaymentId: payment.providerPaymentId,
+        amountPaise: refundPaise,
+        reason: input.reason,
+      });
+    } catch (err: any) {
+      throw Object.assign(new Error(err?.message || 'Refund could not be processed.'), { status: 400, code: 'REFUND_FAILED' });
+    }
+    await audit({ orgId: user.orgId, userId: user.id, action: 'REFUND_REQUESTED', entity: 'Payment', entityId: payment.id, metadata: { amount: paiseToRupees(refundPaise), provider: provider.name }, req });
+    return ok(res, { refunded: paiseToRupees(refundPaise) });
+  })
+);
+
+/** Demo-only: simulate the next billing period's payment (renewal path). */
+router.post(
+  '/demo/renew',
+  requirePermission('billing.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    assertAdminOrAbove(user);
+    const sub = await prisma.subscription.findUnique({ where: { orgId: user.orgId }, include: { plan: true } });
+    if (!sub || !sub.plan) throw badRequest('No active plan to renew.');
+    if (sub.status !== 'ACTIVE') throw badRequest('Only an active subscription can renew.');
+
+    const price = sub.period === 'YEARLY' ? sub.plan.priceYearly : sub.plan.priceMonthly;
+    const payment = await prisma.payment.create({
+      data: { orgId: user.orgId, subscriptionId: sub.id, amount: price, status: 'PENDING', provider: 'DEMO' },
+    });
+    const { headers, rawBody } = buildDemoWebhook('PAYMENT_CAPTURED', payment.id, { amountPaise: price });
+    const result = await handlePaymentWebhook('demo', headers, rawBody);
+    if (!result.ok) throw Object.assign(new Error(result.error || 'Renewal simulation failed.'), { status: 400 });
+
+    const renewed = await prisma.subscription.findUnique({ where: { orgId: user.orgId } });
+    await audit({ orgId: user.orgId, userId: user.id, action: 'RENEWAL_SIMULATED', entity: 'Subscription', entityId: sub.id, metadata: { amount: paiseToRupees(price) }, req });
+    return ok(res, { renewed: true, endsAt: renewed?.endsAt, amount: paiseToRupees(price) });
+  })
+);
+
+/** Payment reconciliation over a date range (default: all time). */
+router.get(
+  '/reconciliation',
+  requirePermission('billing.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const q = req.query as Record<string, string>;
+    const where: Record<string, unknown> = { orgId: user.orgId };
+    if (q.from || q.to) {
+      where.createdAt = {
+        ...(q.from ? { gte: new Date(q.from) } : {}),
+        ...(q.to ? { lte: new Date(q.to) } : {}),
+      };
+    }
+    const payments = await prisma.payment.findMany({ where: where as any, orderBy: { createdAt: 'desc' }, take: 500 });
+    // Money is "collected" the moment it settles — a later refund reduces net
+    // but the original capture is still part of collected revenue.
+    const settled = payments.filter((p) => ['SUCCEEDED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(p.status));
+    const failed = payments.filter((p) => p.status === 'FAILED');
+    const refunded = payments.filter((p) => p.refundedAmount > 0);
+    const collected = settled.reduce((s, p) => s + p.amount, 0);
+    const refundedTotal = refunded.reduce((s, p) => s + p.refundedAmount, 0);
+    return ok(res, {
+      range: { from: q.from || null, to: q.to || null },
+      totals: {
+        payments: payments.length,
+        succeeded: settled.length,
+        failed: failed.length,
+        refunded: refunded.length,
+        collected: paiseToRupees(collected),
+        refundedAmount: paiseToRupees(refundedTotal),
+        net: paiseToRupees(collected - refundedTotal),
+      },
+      payments: payments.map((p) => ({
+        id: p.id,
+        amount: paiseToRupees(p.amount),
+        status: p.status,
+        provider: p.provider,
+        refundedAmount: paiseToRupees(p.refundedAmount),
+        paidAt: p.paidAt,
+        createdAt: p.createdAt,
+      })),
+    });
   })
 );
 

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Receipt, Plus, Search, Download, Trash2, IndianRupee, CheckCircle2 } from 'lucide-react';
+import { Receipt, Plus, Search, Download, Trash2, IndianRupee, CheckCircle2, FileMinus, FilePlus2 } from 'lucide-react';
 import { useInvoices, useCreateInvoice, useUpdateInvoice, useDeleteInvoice, useRecordInvoicePayment, downloadInvoicePdf } from '@/hooks/queries';
+import { NotesPanel } from './NotesPanel';
 import { useToast } from '@/hooks/use-toast';
 import { friendlyError, useAuth } from '@/hooks/use-auth';
 import { PageHeader } from '@/components/ui/page-header';
@@ -28,7 +29,16 @@ const STATUS_META: Record<string, { label: string; tone: 'primary' | 'success' |
   CANCELLED: { label: 'Cancelled', tone: 'muted' },
 };
 
+const TABS = [
+  { key: 'invoices', label: 'Invoices', icon: Receipt },
+  { key: 'credit', label: 'Credit notes', icon: FileMinus },
+  { key: 'debit', label: 'Debit notes', icon: FilePlus2 },
+] as const;
+
+type TabKey = (typeof TABS)[number]['key'];
+
 export function Invoices() {
+  const [tab, setTab] = useState<TabKey>('invoices');
   const [status, setStatus] = useState('ALL');
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -63,6 +73,21 @@ export function Invoices() {
     }
   };
 
+  if (tab !== 'invoices') {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title={tab === 'credit' ? 'Credit notes' : 'Debit notes'}
+          description={tab === 'credit'
+            ? 'Reduce what a customer owes — for returns, corrections or post-invoice discounts.'
+            : 'Charge extra — for short payments, additional work or corrections.'}
+        />
+        <TabSwitcher tab={tab} onChange={setTab} />
+        <NotesPanel kind={tab} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -74,6 +99,8 @@ export function Invoices() {
           </Button>
         }
       />
+
+      <TabSwitcher tab={tab} onChange={setTab} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative sm:w-72">
@@ -167,6 +194,26 @@ export function Invoices() {
 
       <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
       {payFor && <PaymentDialog invoice={payFor} onClose={() => setPayFor(null)} />}
+    </div>
+  );
+}
+
+function TabSwitcher({ tab, onChange }: { tab: TabKey; onChange: (t: TabKey) => void }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {TABS.map((t) => (
+        <button
+          key={t.key}
+          onClick={() => onChange(t.key)}
+          className={
+            'inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-medium transition-all ' +
+            (tab === t.key ? 'border-primary bg-primary text-primary-foreground shadow-sm' : 'bg-background hover:bg-accent')
+          }
+        >
+          <t.icon className="h-4 w-4" />
+          {t.label}
+        </button>
+      ))}
     </div>
   );
 }

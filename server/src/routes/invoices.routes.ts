@@ -13,7 +13,7 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler, badRequest, notFound, ok, validate } from '../lib/http';
 import { requireAuth, requirePermission, assertManagerOrAbove, type AuthedRequest } from '../middleware/auth';
 import { invoiceCreateSchema, invoiceUpdateSchema, invoicePaymentSchema } from '../validators/schemas';
-import { withNextNumber, serializeInvoice, computeDocumentTotals, renderDocumentPdf } from '../services/documents';
+import { withNextNumber, serializeInvoice, computeDocumentTotals, renderDocumentPdf, renderReceiptPdf } from '../services/documents';
 import { rupeesToPaise, paiseToRupees } from '../lib/money';
 import { audit } from '../lib/audit';
 import { notify } from '../lib/serializers';
@@ -320,5 +320,33 @@ router.get(
 function formatINR(n: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n);
 }
+
+/** Payment receipt PDF for a paid invoice — distinct from the tax invoice. */
+router.get(
+  '/:id/receipt',
+  requirePermission('invoices.view'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: req.params.id, ...docWhere(user, user.orgId) },
+      include: { org: { select: { name: true } } },
+    });
+    if (!invoice) throw notFound('Invoice not found');
+    if (invoice.paidAmount <= 0) throw badRequest('This invoice has no payment recorded yet.');
+    const buf = await renderReceiptPdf({
+      orgName: invoice.org.name,
+      invoiceNumber: invoice.number,
+      customerName: invoice.customerName,
+      company: invoice.company,
+      amount: invoice.paidAmount,
+      total: invoice.total,
+      paidAt: invoice.updatedAt, // best available: the moment of last update (payment or edit)
+      method: null,
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${invoice.number}-receipt.pdf"`);
+    res.send(buf);
+  })
+);
 
 export default router;

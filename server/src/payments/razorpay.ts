@@ -20,6 +20,8 @@ import {
   type VerifyResult,
   type VerifiedEvent,
   type ProviderEventKind,
+  type RefundInput,
+  type RefundResult,
 } from './provider';
 
 const KIND_BY_TYPE: Record<string, ProviderEventKind> = {
@@ -74,6 +76,12 @@ export const razorpayProvider: PaymentProvider = {
     });
     if (!res.ok) throw new Error(`Razorpay payment link creation failed (${res.status}).`);
     return { provider: 'razorpay', mode: 'provider', checkoutUrl: res.json.short_url || null, orderId: res.json.id };
+  },
+
+  async refund(input: RefundInput): Promise<RefundResult> {
+    // IMPLEMENTATION REQUIRED — Razorpay Refunds API (POST /v1/payments/:id/refund)
+    // is documented but has not been exercised against real keys.
+    throw new Error('Razorpay refunds are not implemented yet (IMPLEMENTATION REQUIRED).');
   },
 
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: Buffer): VerifyResult {

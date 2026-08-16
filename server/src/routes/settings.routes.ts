@@ -6,7 +6,21 @@ import { audit } from '../lib/audit';
 import { publicOrg } from '../lib/serializers';
 import { orgUpdateSchema } from '../validators/schemas';
 import { getOrgSetting, setOrgSetting } from '../services/assignment';
+import { gstRatesSchema } from '../validators/schemas';
 import { z } from 'zod';
+
+/** The GST rate set every org starts with (config-driven, editable per org). */
+export const DEFAULT_GST_RATES = { rates: [0, 5, 12, 18, 28], defaultRate: 18 };
+
+async function getGstRates(orgId: string) {
+  const stored = await getOrgSetting(orgId, 'gstRates');
+  if (!stored || !Array.isArray((stored as any).rates)) return DEFAULT_GST_RATES;
+  const rates = (stored as any).rates as number[];
+  return {
+    rates,
+    defaultRate: typeof (stored as any).defaultRate === 'number' ? (stored as any).defaultRate : rates.includes(18) ? 18 : rates[0],
+  };
+}
 
 const router = Router();
 const profileSchema = z.object({
@@ -77,6 +91,28 @@ router.patch(
       await setOrgSetting(user.orgId, 'sourceAssignments', input.rules);
     await audit({ orgId: user.orgId, userId: user.id, action: 'ASSIGNMENT_RULES_UPDATED', entity: 'Setting' });
     return ok(res, { saved: true });
+  })
+);
+
+router.get(
+  '/gst',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    return ok(res, { gst: await getGstRates(user.orgId) });
+  })
+);
+
+router.patch(
+  '/gst',
+  requireAuth,
+  requirePermission('settings.manage'),
+  asyncHandler(async (req, res) => {
+    const user = (req as AuthedRequest).user;
+    const input = validate(gstRatesSchema, req.body);
+    await setOrgSetting(user.orgId, 'gstRates', input);
+    await audit({ orgId: user.orgId, userId: user.id, action: 'GST_RATES_UPDATED', entity: 'Setting', metadata: input });
+    return ok(res, { saved: true, gst: input });
   })
 );
 

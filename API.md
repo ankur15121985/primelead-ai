@@ -277,6 +277,34 @@ Same item shape as quotations plus optional `hsnSac` per item, `billingAddress`,
 Adds to `paidAmount` (clamped to total) and advances status: → `PARTIALLY_PAID` or `PAID`. Records a `Payment` row + audit. Rejects payments on cancelled invoices.
 
 ### `GET /invoices/:id/pdf` → PDF attachment
+### `GET /invoices/:id/receipt` → PDF attachment (only when a payment is recorded; 400 otherwise)
+
+A payment **receipt** — distinct from the tax invoice — summarising the amount received, invoice reference and balance due.
+
+## Credit & debit notes
+
+### `GET /credit-notes?status=&search=` → `200 { data: { notes, counts: { issued, cancelled, totalValue } } }`
+### `POST /credit-notes` → `201 { data: { note } }`
+
+`{ customerName, items[], invoiceId?, leadId?, company?, gstin?, reason?, discount? }`. Auto-numbered `CN-YYYY-xxxx`; GST computed server-side. `invoiceId` must belong to the org and appears on the note/PDF as the reference.
+
+### `GET /credit-notes/:id` → `200 { data: { note } }`
+### `PATCH /credit-notes/:id` `{ "status": "DRAFT|ISSUED|CANCELLED", "reason"? }` — a cancelled note can't be reissued
+### `DELETE /credit-notes/:id` (manager+) → `200`
+### `GET /credit-notes/:id/pdf` → PDF attachment
+
+### `GET /debit-notes` / `POST /debit-notes` / `GET /debit-notes/:id` / `PATCH /debit-notes/:id` / `DELETE /debit-notes/:id` / `GET /debit-notes/:id/pdf`
+
+Same shape as credit notes, numbered `DN-YYYY-xxxx`, no invoice reference.
+
+## Tax configuration & e-invoicing
+
+### `GET /settings/gst` → `200 { data: { gst: { rates, defaultRate } } }`
+### `PATCH /settings/gst` (`settings.manage`) `{ "rates": [0,5,12,18,28], "defaultRate": 18 }` → `200`
+
+GST rates are **config data**, not code — each org picks its own set and default. Validators also enforce a 15-character GSTIN format on quotations, invoices and notes (`422 VALIDATION_ERROR` on bad input).
+
+E-invoicing / e-way bill: adapter interfaces live in `server/src/integrations/gst/` (`einvoice.ts`, `ewaybill.ts`) with org-config hooks. **IMPLEMENTATION REQUIRED** — no government API is called; every method throws `EINVOICE_NOT_IMPLEMENTED`/`EWAYBILL_NOT_IMPLEMENTED` until a verified adapter is connected.
 
 ## AI assistant (conversational)
 
@@ -328,6 +356,19 @@ curl -X POST https://your-app/api/webhooks/whatsapp \
 
 Demo mode (no gateway keys): applies instantly, records a `PENDING` Payment. With `RAZORPAY_KEY_ID`/`STRIPE_SECRET_KEY`: prepares the subscription and returns `applied: false, mode: 'provider'`.
 
+### `POST /billing/payments/:id/refund` (admin+) `{ "amount"? (₹), "reason"? }`
+
+Full or partial refunds. Amount is clamped to what's refundable (settled − already refunded). The demo provider fires a **signed** `REFUND_PROCESSED` webhook through the real pipeline; live gateways are IMPLEMENTATION REQUIRED until their Refund APIs are exercised with keys.
+
+### `POST /billing/demo/renew` (admin+, demo only)
+
+Simulates the next billing period: records a `PENDING` payment for the current plan and settles it via the signed webhook path — the subscription's `endsAt` **rolls forward** from the current period end. Returns `{ renewed, endsAt, amount }`.
+
+### `GET /billing/reconciliation?from=&to=` (`billing.manage`) → `200 { data: { range, totals, payments } }`
+
+Totals: payments, succeeded (settled incl. refunded), failed, refunded, collected, refundedAmount, net. Money counts as collected the moment it settles; refunds reduce net, not collected.
+
+### `GET /billing/payments/export` (`billing.manage`) → CSV attachment (≤5000 latest payments)
 ### `POST /billing/cancel` (admin+) → `200 { data: { cancelled } }`
 
 ## Contacts

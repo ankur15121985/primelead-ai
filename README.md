@@ -40,7 +40,10 @@ This is an **original product** (demo brand "PRIMELEAD AI") inspired by the *cat
 | Team management, Settings (profile/org/assignment rules/AI key), audit log | ✅ |
 | QR lead capture — campaign generator, server-rendered QR PNG, mobile-first public form, scan/lead/conversion tracking, pause/delete, copy/download | ✅ |
 | **Quotations** — GST (CGST/SGST/IGST) auto-calc, auto-numbering, draft→sent→accepted workflow, one-click convert to invoice, PDF download | ✅ |
-| **Invoices** — GST + HSN/SAC, payment tracking (partial → paid/overdue), PDF download, payment history | ✅ |
+| **Invoices** — GST + HSN/SAC, payment tracking (partial → paid/overdue), PDF + **payment receipt** downloads | ✅ |
+| **Credit & debit notes** — GST-ready corrections (CN-/DN- numbering, PDF, draft→issued→cancelled), credit notes reference the original invoice | ✅ |
+| **Configurable GST** — per-org rate set + default (Settings → Tax), 15-char GSTIN validation on every document | ✅ |
+| **E-invoice / e-way bill** — adapter interfaces in `server/src/integrations/gst/` ready for a verified provider (**IMPLEMENTATION REQUIRED**, nothing faked) | ⏳ |
 | **Integrations & webhooks** — connect WhatsApp/Facebook/IndiaMART/Shopify/Zapier/API, unique webhook secret + URL, secret-verified inbound lead pipeline | ✅ |
 | **Reports** — date-range analytics: source/owner/status, daily trend, conversion & win rates, revenue, CSV export | ✅ |
 | **Billing & subscriptions** — config-driven plans with usage limits, monthly/yearly, trial → active → past-due lifecycle, cancel-at-period-end, provider-agnostic (Razorpay/Stripe/Cashfree adapters + demo) | ✅ |
@@ -48,8 +51,9 @@ This is an **original product** (demo brand "PRIMELEAD AI") inspired by the *cat
 | **Usage limits** — Plan-table-driven caps (users/leads, 0 = unlimited) enforced at the service layer across manual, QR, webhook and invite entry points | ✅ |
 | **Contacts** — customer directory with search, tags, lead links | ✅ |
 | **Super-admin console** (`/admin`) — platform overview, all organizations, user management, suspend/activate + plan changes, system diagnostics + live error feed (gated by `SUPER_ADMIN_EMAILS`) | ✅ |
-| Automated tests (**90 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, MFA, sessions, account lock, RBAC, teams, request-ids, paise money, **plus Phase 3: multi-pipeline, stage probability/forecast, win/lost lifecycle, recurring follow-ups** | ✅ |
-| **Money in paise** — integer paise everywhere (leads, quotations, invoices, billing), exact GST arithmetic, converted to rupees only at the API/UI boundary | ✅ |
+| Automated tests (**102 passing**) — auth, org isolation, assignment engine, GST, QR capture, quotations/invoices, webhooks, AI chat, reports, billing, admin access control, MFA, sessions, account lock, RBAC, teams, request-ids, paise money, multi-pipeline, win/lost lifecycle, recurring follow-ups, **plus Phase 4/5: credit/debit notes, receipts, GST config, refunds, renewal, reconciliation** | ✅ |
+| **Money in paise** — integer paise everywhere (leads, quotations, invoices, notes, billing), exact GST arithmetic, converted to rupees only at the API/UI boundary | ✅ |
+| **Payments & subscriptions** — provider-agnostic (Razorpay/Stripe/Cashfree/demo), idempotent signed webhooks, app-triggered **refunds**, **renewal** with period roll-forward, **reconciliation** + CSV export | ✅ |
 | **Free tools** — QR Code Generator, GST Invoice Generator (lead magnets, no signup required) | ✅ |
 
 ---
