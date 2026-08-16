@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "quickstart": "npm run db:migrate -w server && npm run db:seed -w server && npm run dev",
+    "mvp": "npm run quickstart",
     "dev:server": "npm run dev -w server",
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w server && npm run build -w client",

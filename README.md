@@ -1,5 +1,7 @@
 # PRIMELEAD AI
 
+> **New here?** Run the whole product with one command — see **[QUICKSTART.md](QUICKSTART.md)** (or `npm run quickstart`).
+
 **AI-powered CRM & lead management for Indian businesses.**
 
 > Every lead captured. Every lead assigned. Every follow-up remembered.
