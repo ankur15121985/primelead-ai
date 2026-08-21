@@ -1,0 +1,59 @@
+# ═══════════════════════════════════════════════════════════════════════
+# PRIMELEAD AI — Prometheus Alert Rules
+# ═══════════════════════════════════════════════════════════════════════
+
+groups:
+  - name: primelead
+    rules:
+      # API is down
+      - alert: PrimeLeadAPIDown
+        expr: up{job="primelead-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PRIMELEAD API is down"
+          description: "The API server has been unreachable for more than 1 minute."
+
+      # High error rate (>5% for 5 minutes)
+      - alert: HighErrorRate
+        expr: |
+          rate(primelead_http_errors_total[5m]) / rate(primelead_http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      # Slow responses (p95 > 2s for 5 minutes)
+      - alert: SlowResponses
+        expr: |
+          histogram_quantile(0.95, rate(primelead_http_request_duration_ms_bucket[5m])) > 2000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API responses are slow"
+          description: "p95 response time is {{ $value | humanizeDuration }}."
+
+      # Too many pending follow-ups
+      - alert: TooManyPendingFollowups
+        expr: primelead_pending_followups > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many pending follow-ups"
+          description: "{{ $value }} follow-ups are overdue."
+
+      # High latency on specific endpoints
+      - alert: EndpointSlowdown
+        expr: |
+          histogram_quantile(0.95, rate(primelead_http_request_duration_ms_bucket{path="/api/leads"}[5m])) > 3000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Leads endpoint is slow"
+          description: "p95 latency for /api/leads is {{ $value | humanizeDuration }}."

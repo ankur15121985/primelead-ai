@@ -10,6 +10,7 @@ import { apiLimiter } from './middleware/rate-limit';
 import { requestId } from './middleware/request-id';
 import { ensureCsrfCookie, csrfProtection } from './middleware/csrf';
 import { errorHandler, notFoundHandler } from './middleware/error';
+import { metricsRouter, metricsMiddleware, startMetricsCollection } from './services/metrics';
 import authRoutes from './routes/auth.routes';
 import leadsRoutes from './routes/leads.routes';
 import pipelineRoutes from './routes/pipeline.routes';
@@ -129,6 +130,10 @@ export function createApp() {
 
   app.use('/api', csrfProtection);
 
+  // Prometheus metrics (no auth required)
+  app.use(metricsMiddleware);
+  app.use(metricsRouter);
+
   // Public-ish endpoints (health, contact, QR capture forms are unauthenticated)
   app.use('/api', miscRoutes);
   app.use('/api/auth', authRoutes);
@@ -223,6 +228,9 @@ export function createApp() {
 
   app.use(notFoundHandler);
   app.use(errorHandler);
+
+  // Start business metrics collection
+  startMetricsCollection();
 
   return app;
 }

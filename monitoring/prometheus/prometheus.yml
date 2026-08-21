@@ -1,0 +1,29 @@
+# ═══════════════════════════════════════════════════════════════════════
+# PRIMELEAD AI — Prometheus Configuration
+# Scrapes metrics from the API server every 15 seconds
+# ═══════════════════════════════════════════════════════════════════════
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Alert rules (optional)
+rule_files:
+  - /etc/prometheus/alerts/*.yml
+
+# Scrape targets
+scrape_configs:
+  # PRIMELEAD AI API
+  - job_name: 'primelead-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api:3001']
+        labels:
+          app: 'primelead'
+          env: 'production'
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

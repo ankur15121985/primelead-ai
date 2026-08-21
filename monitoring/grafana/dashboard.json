@@ -1,0 +1,198 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "API Requests / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(primelead_http_requests_total[5m])",
+          "legendFormat": "{{method}} {{path}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "drawStyle": "line", "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Response Time (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(primelead_http_request_duration_ms_bucket[5m]))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(primelead_http_request_duration_ms_bucket[5m]))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(primelead_http_request_duration_ms_bucket[5m]))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "drawStyle": "line", "fillOpacity": 5 }
+        }
+      }
+    },
+    {
+      "title": "Error Rate",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(primelead_http_errors_total[5m]) / rate(primelead_http_requests_total[5m]) * 100",
+          "legendFormat": "Error %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Total Requests (24h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(increase(primelead_http_requests_total[24h]))",
+          "legendFormat": "Requests",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      }
+    },
+    {
+      "title": "Leads Total",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "primelead_leads_total",
+          "legendFormat": "Leads",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 100 },
+              { "color": "yellow", "value": 1000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Users",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 8 },
+      "targets": [
+        {
+          "expr": "primelead_users_total",
+          "legendFormat": "Users",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Organizations",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 8 },
+      "targets": [
+        {
+          "expr": "primelead_organizations_total",
+          "legendFormat": "Orgs",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Pending Follow-ups",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "primelead_pending_followups",
+          "legendFormat": "Pending",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 50 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Invoices",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 12 },
+      "targets": [
+        {
+          "expr": "primelead_invoices_total",
+          "legendFormat": "Invoices",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Requests by Method",
+      "type": "piechart",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum by (method) (increase(primelead_http_requests_total[1h]))",
+          "legendFormat": "{{method}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["primelead", "crm", "saas"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "PRIMELEAD AI Dashboard",
+  "uid": "primelead-main",
+  "version": 1
+}
