@@ -83,6 +83,7 @@ import meetingNotesRoutes from './routes/meeting-notes.routes';
 import bulkCallsRoutes from './routes/bulk-calls.routes';
 import videoCallRoutes from './routes/video-call.routes';
 import smsOutboundRoutes from './routes/sms-outbound.routes';
+import smsWebhookRoutes from './routes/sms-webhook.routes';
 
 export function createApp() {
   const app = express();
@@ -208,6 +209,7 @@ export function createApp() {
   app.use('/api/bulk-calls', bulkCallsRoutes);
   app.use('/api/video', videoCallRoutes);
   app.use('/api/sms-outbound', smsOutboundRoutes);
+  app.use('/webhooks', smsWebhookRoutes);
 
   // Production single-container mode: when the client has been built, serve its
   // static assets from the API and fall back to index.html for client routes.

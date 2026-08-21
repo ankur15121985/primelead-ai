@@ -4,6 +4,7 @@ import { prisma } from './lib/prisma';
 import { syncOverdue } from './services/followups';
 import { syncSystemRoles } from './services/rbac';
 import { startScheduler } from './services/scheduler';
+import { initWsSignaling } from './services/ws-signaling';
 
 async function main() {
   const app = createApp();
@@ -18,10 +19,17 @@ async function main() {
     console.error('System-role sync failed (continuing startup)', err);
   }
 
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     // eslint-disable-next-line no-console
     console.log(`⚡ PRIMELEAD API listening on http://localhost:${config.port}`);
   });
+
+  // Initialize WebSocket signaling for video calls
+  try {
+    initWsSignaling(server);
+  } catch (err) {
+    console.error('WebSocket signaling init failed (continuing)', err);
+  }
 
   // Start the scheduled messaging processor
   startScheduler();
