@@ -85,6 +85,8 @@ const ForecastDashboard = lazyPage(() => import('@/pages/app/ForecastDashboard')
 const DataProvidersPage = lazyPage(() => import('@/pages/app/DataProviders'), 'DataProviders');
 const Duplicates = lazyPage(() => import('@/pages/app/Duplicates'), 'Duplicates');
 const SecurityCenter = lazyPage(() => import('@/pages/app/SecurityCenter'), 'SecurityCenter');
+const SmsLeads = lazy(() => import('@/pages/app/SmsLeads').then(m => ({ default: m.default })));
+const RecordingsPage = lazy(() => import('@/pages/app/Recordings').then(m => ({ default: m.default })));
 
 function PageFallback() {
   return (
@@ -196,6 +198,8 @@ export default function App() {
           <Route path="data-providers" element={<DataProvidersPage />} />
           <Route path="duplicates" element={<Duplicates />} />
           <Route path="security" element={<SecurityCenter />} />
+          <Route path="sms-leads" element={<SmsLeads />} />
+          <Route path="recordings" element={<RecordingsPage />} />
           <Route path="team" element={<Team />} />
           <Route path="settings" element={<Settings />} />
         </Route>

@@ -104,6 +104,9 @@ model Organization {
   scheduledMessageLogs ScheduledMessageLog[]
   emailTemplates EmailTemplate[]
   scheduledReports ScheduledReport[]
+  smsInbound     SmsInbound[]
+  recordings      Recording[]
+  meetingNotes    MeetingNotes[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -213,6 +216,9 @@ model Lead {
   contacts   Contact[]
   qrScans    QrScan[]
   meetings   Meeting[]
+  smsInbound SmsInbound[]
+  recordings Recording[]
+  meetingNotes MeetingNotes[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1571,6 +1577,8 @@ model Call {
   endedAt         DateTime?
   createdAt       DateTime     @default(now())
 
+  recordings      Recording[]
+  meetingNotes    MeetingNotes[]
   @@index([orgId, leadId])
   @@index([orgId, userId])
   @@index([orgId, status])
@@ -1611,6 +1619,8 @@ model Meeting {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  recordings      Recording[]
+  meetingNotes    MeetingNotes[]
   @@index([orgId, hostId])
   @@index([orgId, leadId])
   @@index([orgId, status])
@@ -2579,5 +2589,110 @@ model ScheduledReportLog {
 
   @@index([orgId, reportId])
   @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 24: SMS Lead Generation + Call Recording + AI Meeting Notes
+// ────────────────────────────────────────────────────────────
+
+/** Inbound SMS messages that generate leads */
+model SmsInbound {
+  id              String   @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId          String?
+  lead            Lead?    @relation(fields: [leadId], references: [id])
+  contactId       String?
+  fromNumber      String
+  toNumber        String?
+  body            String
+  receivedAt      DateTime @default(now())
+  // Processing status: RECEIVED | LEAD_CREATED | DUPLICATE | OPTED_OUT | IGNORED
+  status          String   @default("RECEIVED")
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([orgId, fromNumber])
+  @@index([orgId, status])
+  @@index([orgId, receivedAt])
+}
+
+/** Call and video meeting recordings */
+model Recording {
+  id              String   @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // References — exactly one should be set
+  callId          String?
+  call            Call?    @relation(fields: [callId], references: [id])
+  meetingId       String?
+  meeting         Meeting? @relation(fields: [meetingId], references: [id])
+  leadId          String?
+  lead            Lead?    @relation(fields: [leadId], references: [id])
+  userId          String?
+  // VIDEO | AUDIO | SCREEN_SHARE
+  type            String   @default("AUDIO")
+  // RECORDING | TRANSCRIBING | TRANSCRIBED | FAILED
+  status          String   @default("RECORDING")
+  fileName        String?
+  fileUrl         String?
+  fileSizeBytes   Int      @default(0)
+  durationSeconds Int      @default(0)
+  mimeType        String?
+  // AI-generated fields populated after transcription
+  transcript      String?
+  summary         String?
+  sentiment       String?  // POSITIVE | NEUTRAL | NEGATIVE
+  actionItems     Json?    // string[]
+  keyTopics       Json?    // string[]
+  speakers        Json?    // [{ name, speakingTime, sentiment }]
+  consentGiven    Boolean  @default(false)
+  meetingNotes    MeetingNotes[]
+  metadata        Json?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orgId, callId])
+  @@index([orgId, meetingId])
+  @@index([orgId, userId])
+  @@index([orgId, status])
+}
+
+/** AI-generated meeting notes for calls and meetings */
+model MeetingNotes {
+  id              String   @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  callId          String?
+  call            Call?    @relation(fields: [callId], references: [id])
+  meetingId       String?
+  meeting         Meeting? @relation(fields: [meetingId], references: [id])
+  recordingId     String?
+  recording       Recording? @relation(fields: [recordingId], references: [id])
+  leadId          String?
+  lead            Lead?    @relation(fields: [leadId], references: [id])
+  userId          String?
+  // AUTO_GENERATED | MANUAL | EDITED
+  source          String   @default("AUTO_GENERATED")
+  // The actual notes content
+  title           String?
+  notes           String   // markdown-formatted meeting notes
+  summary         String?  // brief one-liner
+  keyDecisions    Json?    // string[]
+  actionItems     Json?    // [{ assignee, task, dueDate }]
+  followUpItems   Json?    // string[]
+  sentiment       String?  // POSITIVE | NEUTRAL | NEGATIVE
+  attendees       Json?    // string[]
+  durationMinutes Int?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orgId, callId])
+  @@index([orgId, meetingId])
+  @@index([orgId, leadId])
+  @@index([orgId, userId])
 }
 

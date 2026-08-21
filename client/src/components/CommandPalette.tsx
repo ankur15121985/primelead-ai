@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, LayoutDashboard, Users, Building2, Phone, Mail, Calendar, BarChart3, Settings, Bot, Zap, FileText, Target, Inbox, ListTodo, MessageSquare, Workflow, ShieldCheck, Key, Webhook, Upload, Map, TrendingUp, GraduationCap, Database, GitMerge, PieChart, UserCheck, Route, Globe, QrCode, CreditCard, ShieldAlert, CalendarDays, ListChecks } from 'lucide-react';
+import { Search, LayoutDashboard, Users, Building2, Phone, Mail, Calendar, BarChart3, Settings, Bot, Zap, FileText, Target, Inbox, ListTodo, MessageSquare, Workflow, ShieldCheck, Key, Webhook, Upload, Map, TrendingUp, GraduationCap, Database, GitMerge, PieChart, UserCheck, Route, Globe, QrCode, CreditCard, ShieldAlert, CalendarDays, ListChecks, Mic } from 'lucide-react';
 
 interface CommandItem {
   id: string;
@@ -58,6 +58,8 @@ export function CommandPalette() {
     { id: 'nav-deliverability', label: 'Deliverability', description: 'Email deliverability metrics', icon: <Globe className="h-4 w-4" />, action: () => navigate('/app/deliverability'), category: 'Tools' },
     { id: 'nav-data-providers', label: 'Data Providers', description: 'Data enrichment sources', icon: <Database className="h-4 w-4" />, action: () => navigate('/app/data-providers'), category: 'Tools' },
     { id: 'nav-territories', label: 'Territories', description: 'Territory management', icon: <Map className="h-4 w-4" />, action: () => navigate('/app/territories'), category: 'Tools' },
+    { id: 'nav-sms-leads', label: 'SMS Leads', description: 'Inbound SMS lead generation', icon: <MessageSquare className="h-4 w-4" />, action: () => navigate('/app/sms-leads'), category: 'Tools' },
+    { id: 'nav-recordings', label: 'Recordings', description: 'Call & video recordings', icon: <Mic className="h-4 w-4" />, action: () => navigate('/app/recordings'), category: 'Tools' },
     // Settings
     { id: 'nav-settings', label: 'Settings', description: 'Workspace settings', icon: <Settings className="h-4 w-4" />, action: () => navigate('/app/settings'), category: 'Settings' },
     { id: 'nav-security', label: 'Security Center', description: 'Audit logs & sessions', icon: <ShieldCheck className="h-4 w-4" />, action: () => navigate('/app/security'), category: 'Settings' },

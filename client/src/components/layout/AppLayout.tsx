@@ -5,6 +5,7 @@ import {
   CalendarDays, BookUser, FileText, Receipt, BarChart3, Bot, Plug, CreditCard, MessageSquare, Workflow,
   Phone, Mail, Building2, FlaskConical, Target, Zap, PieChart, GraduationCap, TrendingUp, Map, Key, Webhook,
   Upload, GitMerge, Database, Wrench, Globe, Route, FileInput, UserCheck, Brain, Activity, LayoutList, ShieldAlert,
+  Mic,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { NotificationsBell } from './NotificationsBell';
@@ -32,6 +33,8 @@ const SELL_NAV = [
   { to: '/app/meetings', label: 'Meetings', icon: CalendarDays },
   { to: '/app/sequences', label: 'Sequences', icon: Mail },
   { to: '/app/ai', label: 'AI Assistant', icon: Bot },
+  { to: '/app/sms-leads', label: 'SMS Leads', icon: MessageSquare },
+  { to: '/app/recordings', label: 'Recordings', icon: Mic },
 ];
 
 const INTEL_NAV = [
@@ -231,7 +234,7 @@ export function AppLayout() {
               NAV[1], // Leads
               NAV[2], // Inbox
               SELL_NAV[0], // Quotations
-              SELL_NAV[5], // AI Assistant
+              SELL_NAV[7], // Recordings
             ].map((item) => (
               <NavLink
                 key={item.to}

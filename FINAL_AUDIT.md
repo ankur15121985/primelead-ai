@@ -7,7 +7,7 @@ Phase 19. Ratings:
 - **WARNING** — implemented but partial / design-only / needs production credentials.
 - **NOT_IMPLEMENTED** — deliberately not built (usually because it needs a real third-party credential or is a known future item).
 
-Verification baseline: **203 automated tests passing**, server + client typecheck
+Verification baseline: **228 automated tests passing**, server + client typecheck
 clean, client builds, Docker image builds/boots/migrates (48 tables), prod build
 serves API + SPA. Commits: Phases 1–20.
 
@@ -28,7 +28,7 @@ serves API + SPA. Commits: Phases 1–20.
 | **Responsiveness** | ✅ PASS | Mobile-first Tailwind; breakpoints in app pages; mobile-priority flows (lead create/call/WhatsApp/follow-up) work on small screens. |
 | **Accessibility** | ✅ PASS | **Automated axe suite** (`npm run test:e2e -w client`, a11y spec) scans home, login, signup, pricing, QR generator and the authenticated dashboard — zero serious/critical violations. Fixes landed: logo/brand color contrast on dark+light, footer & pricing muted text, sidebar labels, the amber follow-up pill, and recharts pie sectors (unnamed `role=img`) marked decorative with labelled charts. Radix primitives + labelled forms. |
 | **SEO** | ⚠ WARNING | `robots.txt` + `sitemap.xml` present; index.html carries OpenGraph (og:title/description/type); `use-seo` sets title/meta description per page; marketing pages exist (Home/Features/Pricing/FAQ/Contact/Security/Integrations). No per-page Schema.org structured data; no blog content system. |
-| **Testing** | ✅ PASS | 203 tests: unit/API/authorization/isolation/security/rate-limit/webhook/payment/AI/automation suites + supertest E2E scripts (`scripts/verify-*.js`) + **Playwright browser E2E** (`npm run test:e2e`: signup → lead → follow-up against the production build). |
+| **Testing** | ✅ PASS | 228 tests: unit/API/authorization/isolation/security/rate-limit/webhook/payment/AI/automation suites + supertest E2E scripts (`scripts/verify-*.js`) + **Playwright browser E2E** (`npm run test:e2e`: signup → lead → follow-up against the production build). |
 | **Logging** | ✅ PASS | Request IDs on every response; structured error records to the admin error feed (`server-log.ts`); stdout logs; secrets never logged (tokens write-only). ⚠ No external metrics/tracing integration (hooks exist via the error feed). |
 | **Backups** | ✅ PASS | `npm run backup` — online `VACUUM INTO` snapshot through the app's own Prisma client (zero downtime), documented in `docs/DEPLOYMENT.md` with retention/restore guidance; scheduling is the operator's cron/docker exec. |
 | **Error handling** | ✅ PASS | Consistent `{ code, message, requestId, details? }` contract; never leaks stack traces; friendly UX messages with references; 404/413/409/422/429 mapped. |

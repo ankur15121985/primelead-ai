@@ -77,6 +77,9 @@ import scheduledMessagesRoutes from './routes/scheduled-messages.routes';
 import gstEInvoiceRoutes from './routes/gst-einvoice.routes';
 import emailTemplatesRoutes from './routes/email-templates.routes';
 import reportSchedulerRoutes from './routes/report-scheduler.routes';
+import smsRoutes from './routes/sms.routes';
+import recordingsRoutes from './routes/recordings.routes';
+import meetingNotesRoutes from './routes/meeting-notes.routes';
 
 export function createApp() {
   const app = express();
@@ -191,6 +194,12 @@ export function createApp() {
   app.use('/api/gst', gstEInvoiceRoutes);
   app.use('/api/email-templates', emailTemplatesRoutes);
   app.use('/api/report-scheduler', reportSchedulerRoutes);
+
+  // Phase 24: SMS lead generation, recordings, AI meeting notes
+  app.use('/api/sms', smsRoutes);
+  app.use('/webhooks', smsRoutes);
+  app.use('/api/recordings', recordingsRoutes);
+  app.use('/api/meeting-notes', meetingNotesRoutes);
 
   // Production single-container mode: when the client has been built, serve its
   // static assets from the API and fall back to index.html for client routes.
