@@ -87,6 +87,8 @@ const Duplicates = lazyPage(() => import('@/pages/app/Duplicates'), 'Duplicates'
 const SecurityCenter = lazyPage(() => import('@/pages/app/SecurityCenter'), 'SecurityCenter');
 const SmsLeads = lazy(() => import('@/pages/app/SmsLeads').then(m => ({ default: m.default })));
 const RecordingsPage = lazy(() => import('@/pages/app/Recordings').then(m => ({ default: m.default })));
+const VideoCallPage = lazy(() => import('@/pages/app/VideoCall').then(m => ({ default: m.default })));
+const BulkCallsPage = lazy(() => import('@/pages/app/BulkCalls').then(m => ({ default: m.default })));
 
 function PageFallback() {
   return (
@@ -200,6 +202,8 @@ export default function App() {
           <Route path="security" element={<SecurityCenter />} />
           <Route path="sms-leads" element={<SmsLeads />} />
           <Route path="recordings" element={<RecordingsPage />} />
+          <Route path="video-call" element={<VideoCallPage />} />
+          <Route path="bulk-calls" element={<BulkCallsPage />} />
           <Route path="team" element={<Team />} />
           <Route path="settings" element={<Settings />} />
         </Route>

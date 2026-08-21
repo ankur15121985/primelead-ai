@@ -80,6 +80,9 @@ import reportSchedulerRoutes from './routes/report-scheduler.routes';
 import smsRoutes from './routes/sms.routes';
 import recordingsRoutes from './routes/recordings.routes';
 import meetingNotesRoutes from './routes/meeting-notes.routes';
+import bulkCallsRoutes from './routes/bulk-calls.routes';
+import videoCallRoutes from './routes/video-call.routes';
+import smsOutboundRoutes from './routes/sms-outbound.routes';
 
 export function createApp() {
   const app = express();
@@ -200,6 +203,11 @@ export function createApp() {
   app.use('/webhooks', smsRoutes);
   app.use('/api/recordings', recordingsRoutes);
   app.use('/api/meeting-notes', meetingNotesRoutes);
+
+  // Phase 25: bulk calls, video rooms, SMS outbound
+  app.use('/api/bulk-calls', bulkCallsRoutes);
+  app.use('/api/video', videoCallRoutes);
+  app.use('/api/sms-outbound', smsOutboundRoutes);
 
   // Production single-container mode: when the client has been built, serve its
   // static assets from the API and fall back to index.html for client routes.

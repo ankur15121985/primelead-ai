@@ -35,6 +35,8 @@ const SELL_NAV = [
   { to: '/app/ai', label: 'AI Assistant', icon: Bot },
   { to: '/app/sms-leads', label: 'SMS Leads', icon: MessageSquare },
   { to: '/app/recordings', label: 'Recordings', icon: Mic },
+  { to: '/app/video-call', label: 'Video Call', icon: Mic },
+  { to: '/app/bulk-calls', label: 'Bulk Calls', icon: Phone },
 ];
 
 const INTEL_NAV = [

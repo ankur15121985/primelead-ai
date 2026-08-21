@@ -105,8 +105,10 @@ model Organization {
   emailTemplates EmailTemplate[]
   scheduledReports ScheduledReport[]
   smsInbound     SmsInbound[]
+  smsOutbound    SmsOutbound[]
   recordings      Recording[]
   meetingNotes    MeetingNotes[]
+  videoRooms      VideoRoom[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -217,8 +219,10 @@ model Lead {
   qrScans    QrScan[]
   meetings   Meeting[]
   smsInbound SmsInbound[]
+  smsOutbound SmsOutbound[]
   recordings Recording[]
   meetingNotes MeetingNotes[]
+  videoRooms VideoRoom[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1621,6 +1625,7 @@ model Meeting {
 
   recordings      Recording[]
   meetingNotes    MeetingNotes[]
+  videoRooms      VideoRoom[]
   @@index([orgId, hostId])
   @@index([orgId, leadId])
   @@index([orgId, status])
@@ -2694,5 +2699,80 @@ model MeetingNotes {
   @@index([orgId, meetingId])
   @@index([orgId, leadId])
   @@index([orgId, userId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 25: Bulk Calls, Video Rooms, SMS Outbound
+// ────────────────────────────────────────────────────────────
+
+/** Video call rooms for WebRTC meetings */
+model VideoRoom {
+  id              String   @id @default(cuid())
+  roomId          String   @unique // public room identifier
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  title           String
+  hostId          String
+  leadId          String?
+  lead            Lead?    @relation(fields: [leadId], references: [id])
+  meetingId       String?
+  meeting         Meeting? @relation(fields: [meetingId], references: [id])
+  // WAITING | ACTIVE | RECORDING | ENDED
+  status          String   @default("WAITING")
+  maxParticipants Int      @default(10)
+  recordingEnabled Boolean @default(true)
+  passwordHash    String?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime @default(now())
+
+  participants    VideoParticipant[]
+  @@index([orgId, status])
+  @@index([orgId, hostId])
+}
+
+/** Video call participants */
+model VideoParticipant {
+  id              String   @id @default(cuid())
+  roomId          String
+  room            VideoRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId          String
+  // HOST | PARTICIPANT
+  role            String   @default("PARTICIPANT")
+  isMuted         Boolean  @default(false)
+  isVideoOff      Boolean  @default(false)
+  // WebRTC signaling data
+  sdp             String?
+  sdpType         String?  // offer | answer
+  iceCandidates   Json?    // string[]
+  joinedAt        DateTime @default(now())
+  leftAt          DateTime?
+
+  @@index([roomId, userId])
+}
+
+/** Outbound SMS messages */
+model SmsOutbound {
+  id              String   @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId          String?
+  leadId          String?
+  lead            Lead?    @relation(fields: [leadId], references: [id])
+  toNumber        String
+  fromNumber      String?
+  body            String
+  // QUEUED | SENT | DELIVERED | FAILED | UNDELIVERABLE
+  status          String   @default("QUEUED")
+  providerMessageId String?
+  error           String?
+  cost            Float?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([orgId, leadId])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
 }
 

@@ -60,6 +60,8 @@ export function CommandPalette() {
     { id: 'nav-territories', label: 'Territories', description: 'Territory management', icon: <Map className="h-4 w-4" />, action: () => navigate('/app/territories'), category: 'Tools' },
     { id: 'nav-sms-leads', label: 'SMS Leads', description: 'Inbound SMS lead generation', icon: <MessageSquare className="h-4 w-4" />, action: () => navigate('/app/sms-leads'), category: 'Tools' },
     { id: 'nav-recordings', label: 'Recordings', description: 'Call & video recordings', icon: <Mic className="h-4 w-4" />, action: () => navigate('/app/recordings'), category: 'Tools' },
+    { id: 'nav-video-call', label: 'Video Call', description: 'WebRTC video rooms', icon: <Mic className="h-4 w-4" />, action: () => navigate('/app/video-call'), category: 'Tools' },
+    { id: 'nav-bulk-calls', label: 'Bulk Calls', description: 'Initiate calls to multiple contacts', icon: <Phone className="h-4 w-4" />, action: () => navigate('/app/bulk-calls'), category: 'Tools' },
     // Settings
     { id: 'nav-settings', label: 'Settings', description: 'Workspace settings', icon: <Settings className="h-4 w-4" />, action: () => navigate('/app/settings'), category: 'Settings' },
     { id: 'nav-security', label: 'Security Center', description: 'Audit logs & sessions', icon: <ShieldCheck className="h-4 w-4" />, action: () => navigate('/app/security'), category: 'Settings' },
