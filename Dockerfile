@@ -1,41 +1,50 @@
-# ── PRIMELEAD AI — single-container build ──────────────────────────────
-# The API serves the built client (guarded static mount in server/src/app.ts),
-# so one container runs the whole product. SQLite is the datasource; mount a
-# volume at /app/server/data for persistence (see docker-compose.yml).
+# Stage 1: Build client
+FROM node:20-alpine AS client-builder
+WORKDIR /app/client
+COPY client/package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY client/ ./
+RUN npm run build
 
-# 1. Install workspace dependencies (root npm workspaces hoist to ./node_modules)
-FROM node:22-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-COPY server/package.json server/package.json
-COPY client/package.json client/package.json
-RUN npm ci
-
-# 2. Build server (tsc → server/dist) and client (vite → client/dist)
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-# Prisma client is generated for SQLite during install; regenerate to be safe.
-RUN cd server && npx prisma generate && npm run build && cd ../client && npm run build
-
-# 3. Runtime — node_modules (kept whole so `prisma migrate deploy` works),
-#    compiled server, prisma schema/migrations, and the built client.
-FROM node:22-alpine AS runtime
-ENV NODE_ENV=production
-WORKDIR /app
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/server/dist ./server/dist
-COPY --from=build /app/server/package.json ./server/package.json
-COPY --from=build /app/server/prisma ./server/prisma
-COPY --from=build /app/client/dist ./client/dist
-
-# SQLite lives on a volume so data survives container rebuilds.
-RUN mkdir -p /app/server/data
-ENV DATABASE_URL="file:/app/server/data/primelead.db"
-
-EXPOSE 4000
+# Stage 2: Build server
+FROM node:20-alpine AS server-builder
 WORKDIR /app/server
-# Apply pending migrations, then boot the compiled API. Migrations are
-# idempotent — safe on every container start.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+COPY server/package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY server/ ./
+RUN npx prisma generate
+RUN npm run build
+
+# Stage 3: Production
+FROM node:20-alpine AS production
+WORKDIR /app
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+# Copy server
+COPY --from=server-builder /app/server/package*.json ./
+COPY --from=server-builder /app/server/node_modules ./node_modules
+COPY --from=server-builder /app/server/dist ./dist
+COPY --from=server-builder /app/server/prisma ./prisma
+COPY --from=server-builder /app/server/src/seed.ts ./src/seed.ts 2>/dev/null || true
+
+# Copy client build
+COPY --from=client-builder /app/client/dist ./client/dist
+
+# Copy scripts
+COPY scripts/ ./scripts/
+
+# Create uploads directory
+RUN mkdir -p /app/uploads
+
+# Generate Prisma client for production
+RUN npx prisma generate
+
+EXPOSE 3001
+
+ENV NODE_ENV=production
+ENV PORT=3001
+
+# Start command: run migrations + seed + start server
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]

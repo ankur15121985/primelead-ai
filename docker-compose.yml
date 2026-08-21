@@ -1,46 +1,69 @@
-# PRIMELEAD AI — single-container deployment.
-#
-#   docker compose up -d --build
-#
-# The image ships SQLite (zero-config, persistent via the volume below).
-# Moving to PostgreSQL: change the datasource provider in prisma/schema.prisma,
-# regenerate migrations, set DATABASE_URL to your Postgres DSN and add a db
-# service here — the schema is already Postgres-compatible (Int paise money,
-# String enums, orgId on every entity).
+version: '3.8'
+
 services:
-  api:
-    build: .
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: primelead
+      POSTGRES_USER: primelead
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme-in-production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "4000:4000"
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U primelead"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
     environment:
       NODE_ENV: production
-      # ── Required in production ──
-      # Generate with: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
-      JWT_SECRET: "${JWT_SECRET:-change-me-before-production}"
-      # Comma-separated origins allowed by CORS (the deployed client origin).
-      CLIENT_ORIGIN: "${CLIENT_ORIGIN:-http://localhost:4000}"
-      # Comma-separated emails allowed to open /admin. Empty = admin area off.
-      SUPER_ADMIN_EMAILS: "${SUPER_ADMIN_EMAILS:-}"
-      # Must be true behind TLS (terminated by your proxy / load balancer).
-      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
-      # Public URL used in emails/links.
-      APP_URL: "${APP_URL:-http://localhost:4000}"
-      # ── Optional ──
-      # AI_PROVIDER / AI_API_KEY / AI_MODEL for the assistant & lead intelligence.
-      # RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET (or Stripe/Cashfree) for real payments.
-      # SMTP_HOST / SMTP_USER / SMTP_PASS / SMTP_FROM for transactional email.
-      PAYMENT_WEBHOOK_SECRET: "${PAYMENT_WEBHOOK_SECRET:-prod-payment-webhook-secret}"
-      TRIAL_DAYS: "${TRIAL_DAYS:-14}"
+      PORT: 3001
+      DATABASE_URL: postgresql://primelead:${DB_PASSWORD:-changeme-in-production}@db:5432/primelead
+      REDIS_URL: redis://redis:6379
+      CLIENT_ORIGIN: http://localhost:3001
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-in-production}
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-change-this-in-production}
+      SUPER_ADMIN_EMAILS: ${SUPER_ADMIN_EMAILS:-admin@primelead.ai}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      AI_API_KEY: ${AI_API_KEY:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      # SQLite database — survives rebuilds/upgrades.
-      - primelead-data:/app/server/data
-    restart: unless-stopped
+      - uploads_data:/app/uploads
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 15s
 
 volumes:
-  primelead-data:
+  postgres_data:
+  uploads_data:

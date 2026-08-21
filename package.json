@@ -21,9 +21,15 @@
     "db:sqlite": "bash server/scripts/switch-db.sh sqlite",
     "db:status": "bash server/scripts/switch-db.sh status",
     "test": "npm run test -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
+    "test:e2e": "npx playwright test",
+    "test:all": "npm run test && npm run test:e2e",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "concurrently": "^9.1.0"
   },
   "dependencies": {
