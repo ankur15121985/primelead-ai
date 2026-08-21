@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { AuthProvider } from '@/hooks/use-auth';
 import { ToastProvider } from '@/hooks/use-toast';
+import { ThemeProvider } from '@/components/ThemeProvider';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -25,15 +26,16 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   });
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+ReactDOM.createRoot(document.getElementById('root')!).render(    <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <ThemeProvider>
         <AuthProvider>
           <ToastProvider>
             <App />
           </ToastProvider>
         </AuthProvider>
+        </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>

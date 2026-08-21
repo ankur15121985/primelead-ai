@@ -1,11 +1,11 @@
-/* PRIMELEAD AI — service worker (offline app shell).
+/* PRIMELEAD AI — service worker (offline app shell + push notifications).
  *
  * Scope: installable + offline-friendly shell. The app shell (/, assets)
  * is cached so the SPA loads without a connection; API calls are NEVER
- * cached (tenant data stays server-side). Push notifications are not part
- * of this worker yet — that needs VAPID keys and server-side Web Push.
+ * cached (tenant data stays server-side). Push notifications display
+ * rich notifications when the app is in the background.
  */
-const CACHE = 'primelead-shell-v1';
+const CACHE = 'primelead-shell-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
@@ -61,6 +61,63 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => cached);
       return cached || fetchPromise;
+    })
+  );
+});
+
+// ── Push Notifications ────────────────────────────────────
+
+self.addEventListener('push', (event) => {
+  let payload = { title: 'PRIMELEAD AI', body: 'You have a new notification', url: '/app/dashboard' };
+
+  try {
+    if (event.data) {
+      payload = { ...payload, ...event.data.json() };
+    }
+  } catch {
+    // If JSON parse fails, show the raw text
+    payload.body = event.data ? event.data.text() : payload.body;
+  }
+
+  const options = {
+    body: payload.body,
+    icon: payload.icon || '/favicon.svg',
+    badge: payload.badge || '/favicon.svg',
+    tag: payload.tag || 'primelead-notification',
+    renotify: true,
+    data: {
+      url: payload.url || '/app/dashboard',
+      ...payload.data,
+    },
+    actions: payload.actions || [
+      { action: 'open', title: 'Open' },
+    ],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, options)
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const url = event.notification.data?.url || '/app/dashboard';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Focus existing window if one is open at the same URL
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.focus();
+          if (client.navigate) client.navigate(url);
+          return;
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(url);
+      }
     })
   );
 });

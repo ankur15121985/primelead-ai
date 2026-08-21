@@ -65,9 +65,26 @@ export const cashfreeProvider: PaymentProvider = {
   },
 
   async refund(input: RefundInput): Promise<RefundResult> {
-    // IMPLEMENTATION REQUIRED — Cashfree Refunds API (POST /pg/orders/:id/refunds)
-    // is documented but has not been exercised against real keys.
-    throw new Error('Cashfree refunds are not implemented yet (IMPLEMENTATION REQUIRED).');
+    if (!cashfreeProvider.configured) {
+      throw new Error('Cashfree is not configured — cannot process refund.');
+    }
+    const base = config.payments.cashfreeEnv === 'production' ? 'https://api.cashfree.com' : 'https://sandbox.cashfree.com';
+    // POST /pg/orders/:order_id/refunds
+    const orderId = `pl_${input.paymentId}`;
+    const res = await providerPost(`${base}/pg/orders/${orderId}/refunds`, {
+      auth: { username: config.payments.cashfreeAppId, password: config.payments.cashfreeSecretKey },
+      headers: { 'x-api-version': '2023-08-01' },
+      body: {
+        refund_amount: input.amountPaise / 100,
+        refund_note: input.reason || 'Refund requested',
+        refund_id: `refund_${input.paymentId}_${Date.now()}`,
+      },
+    });
+    if (!res.ok) {
+      const msg = res.json?.message || res.json?.subCode || `HTTP ${res.status}`;
+      throw new Error(`Cashfree refund failed: ${msg}`);
+    }
+    return { providerRefundId: res.json?.cf_refund_id || undefined };
   },
 
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: Buffer): VerifyResult {

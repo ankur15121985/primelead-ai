@@ -56,6 +56,35 @@ const Settings = lazyPage(() => import('@/pages/app/Settings'), 'Settings');
 const QrCodes = lazyPage(() => import('@/pages/app/QrCodes'), 'QrCodes');
 const Automations = lazyPage(() => import('@/pages/app/Automations'), 'Automations');
 const Onboarding = lazyPage(() => import('@/pages/app/Onboarding'), 'Onboarding');
+const Companies = lazyPage(() => import('@/pages/app/Companies'), 'Companies');
+const CompanyDetail = lazyPage(() => import('@/pages/app/CompanyDetail'), 'CompanyDetail');
+const SearchPage = lazyPage(() => import('@/pages/app/Search'), 'SearchPage');
+const IcpBuilder = lazyPage(() => import('@/pages/app/IcpBuilder'), 'IcpBuilder');
+const Personas = lazyPage(() => import('@/pages/app/Personas'), 'Personas');
+const DataQuality = lazyPage(() => import('@/pages/app/DataQuality'), 'DataQuality');
+const ScoringRules = lazyPage(() => import('@/pages/app/ScoringRules'), 'ScoringRules');
+const Signals = lazyPage(() => import('@/pages/app/Signals'), 'Signals');
+const SequenceBuilder = lazyPage(() => import('@/pages/app/SequenceBuilder'), 'SequenceBuilder');
+const Deliverability = lazyPage(() => import('@/pages/app/Deliverability'), 'Deliverability');
+const Calls = lazyPage(() => import('@/pages/app/Calls'), 'Calls');
+const MeetingsPage = lazyPage(() => import('@/pages/app/MeetingsPage'), 'MeetingsPage');
+const Intelligence = lazyPage(() => import('@/pages/app/Intelligence'), 'Intelligence');
+const WorkflowBuilder = lazyPage(() => import('@/pages/app/WorkflowBuilder'), 'WorkflowBuilder');
+const AiResearch = lazyPage(() => import('@/pages/app/AiResearch'), 'AiResearch');
+const FormsBuilder = lazyPage(() => import('@/pages/app/FormsBuilder'), 'FormsBuilder');
+const InboundRouting = lazyPage(() => import('@/pages/app/InboundRouting'), 'InboundRouting');
+const AnalyticsDashboard = lazyPage(() => import('@/pages/app/AnalyticsDashboard'), 'AnalyticsDashboard');
+const Compliance = lazyPage(() => import('@/pages/app/Compliance'), 'Compliance');
+const ApiKeys = lazyPage(() => import('@/pages/app/ApiKeys'), 'ApiKeys');
+const WebhooksDashboard = lazyPage(() => import('@/pages/app/WebhooksDashboard'), 'WebhooksDashboard');
+const ImportWizard = lazyPage(() => import('@/pages/app/ImportWizard'), 'ImportWizard');
+const ReportBuilderPage = lazyPage(() => import('@/pages/app/ReportBuilder'), 'ReportBuilder');
+const Territories = lazyPage(() => import('@/pages/app/Territories'), 'Territories');
+const CoachingDashboard = lazyPage(() => import('@/pages/app/CoachingDashboard'), 'CoachingDashboard');
+const ForecastDashboard = lazyPage(() => import('@/pages/app/ForecastDashboard'), 'ForecastDashboard');
+const DataProvidersPage = lazyPage(() => import('@/pages/app/DataProviders'), 'DataProviders');
+const Duplicates = lazyPage(() => import('@/pages/app/Duplicates'), 'Duplicates');
+const SecurityCenter = lazyPage(() => import('@/pages/app/SecurityCenter'), 'SecurityCenter');
 
 function PageFallback() {
   return (
@@ -136,6 +165,37 @@ export default function App() {
           <Route path="billing" element={<Billing />} />
           <Route path="qr-codes" element={<QrCodes />} />
           <Route path="automations" element={<Automations />} />
+          <Route path="companies" element={<Companies />} />
+          <Route path="companies/new" element={<Companies />} />
+          <Route path="companies/:id" element={<CompanyDetail />} />
+          <Route path="companies/:id/edit" element={<CompanyDetail />} />
+          <Route path="search" element={<SearchPage />} />
+          <Route path="icps" element={<IcpBuilder />} />
+          <Route path="personas" element={<Personas />} />
+          <Route path="data-quality" element={<DataQuality />} />
+          <Route path="scoring" element={<ScoringRules />} />
+          <Route path="signals" element={<Signals />} />
+          <Route path="sequences" element={<SequenceBuilder />} />
+          <Route path="deliverability" element={<Deliverability />} />
+          <Route path="calls" element={<Calls />} />
+          <Route path="meetings" element={<MeetingsPage />} />
+          <Route path="intelligence" element={<Intelligence />} />
+          <Route path="workflows" element={<WorkflowBuilder />} />
+          <Route path="ai-research" element={<AiResearch />} />
+          <Route path="forms" element={<FormsBuilder />} />
+          <Route path="inbound" element={<InboundRouting />} />
+          <Route path="analytics-v2" element={<AnalyticsDashboard />} />
+          <Route path="compliance" element={<Compliance />} />
+          <Route path="api-keys" element={<ApiKeys />} />
+          <Route path="webhooks-platform" element={<WebhooksDashboard />} />
+          <Route path="import" element={<ImportWizard />} />
+          <Route path="report-builder" element={<ReportBuilderPage />} />
+          <Route path="territories" element={<Territories />} />
+          <Route path="coaching" element={<CoachingDashboard />} />
+          <Route path="forecast" element={<ForecastDashboard />} />
+          <Route path="data-providers" element={<DataProvidersPage />} />
+          <Route path="duplicates" element={<Duplicates />} />
+          <Route path="security" element={<SecurityCenter />} />
           <Route path="team" element={<Team />} />
           <Route path="settings" element={<Settings />} />
         </Route>

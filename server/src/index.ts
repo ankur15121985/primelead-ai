@@ -3,6 +3,7 @@ import { config } from './config';
 import { prisma } from './lib/prisma';
 import { syncOverdue } from './services/followups';
 import { syncSystemRoles } from './services/rbac';
+import { startScheduler } from './services/scheduler';
 
 async function main() {
   const app = createApp();
@@ -21,6 +22,9 @@ async function main() {
     // eslint-disable-next-line no-console
     console.log(`⚡ PRIMELEAD API listening on http://localhost:${config.port}`);
   });
+
+  // Start the scheduled messaging processor
+  startScheduler();
 
   // Follow-up engine: mark overdue tasks + notify exactly once, every 60s.
   setInterval(

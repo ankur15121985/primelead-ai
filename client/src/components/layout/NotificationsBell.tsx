@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, BellRing } from 'lucide-react';
+import { Bell, BellRing, BellOff, BellPlus } from 'lucide-react';
 import { useNotifications, useMarkNotificationsRead } from '@/hooks/queries';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { timeAgo } from '@/lib/format';
 import { DropdownMenu, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown-menu';
 
 export function NotificationsBell() {
   const { data } = useNotifications();
   const markRead = useMarkNotificationsRead();
+  const push = usePushNotifications();
   const [open, setOpen] = useState(false);
   const unread = data?.unread || 0;
 
@@ -22,6 +24,7 @@ export function NotificationsBell() {
         <button
           className="relative rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
+          onClick={handleOpen}
         >
           {unread > 0 ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
           {unread > 0 && (
@@ -49,6 +52,21 @@ export function NotificationsBell() {
           </DropdownItem>
         ))}
       </div>
+      <DropdownSeparator />
+      {push.supported && (
+        <DropdownItem onSelect={async () => {
+          if (push.subscribed) {
+            await push.unsubscribe();
+          } else {
+            await push.subscribe();
+          }
+        }}>
+          <div className="flex items-center gap-2">
+            {push.subscribed ? <BellOff className="h-4 w-4" /> : <BellPlus className="h-4 w-4" />}
+            <span className="text-sm">{push.subscribed ? 'Disable push notifications' : 'Enable push notifications'}</span>
+          </div>
+        </DropdownItem>
+      )}
       <DropdownSeparator />
       <DropdownItem onSelect={() => setOpen(false)}>
         <Link to="/app/dashboard" className="w-full text-center text-xs">View dashboard</Link>

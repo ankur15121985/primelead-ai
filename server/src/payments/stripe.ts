@@ -94,9 +94,31 @@ export const stripeProvider: PaymentProvider = {
   },
 
   async refund(input: RefundInput): Promise<RefundResult> {
-    // IMPLEMENTATION REQUIRED — Stripe Refunds API (POST /v1/refunds) is
-    // documented but has not been exercised against real keys.
-    throw new Error('Stripe refunds are not implemented yet (IMPLEMENTATION REQUIRED).');
+    if (!stripeProvider.configured) {
+      throw new Error('Stripe is not configured — cannot process refund.');
+    }
+    if (!input.providerPaymentId) {
+      throw new Error('Stripe refund requires the provider payment ID (providerPaymentId).');
+    }
+    // POST /v1/refunds — form-encoded
+    const res = await providerPost(`${API}/refunds`, {
+      auth: { bearer: config.payments.stripeSecretKey },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formEncode({
+        payment_intent: input.providerPaymentId,
+        amount: input.amountPaise,
+        reason: 'requested_by_customer',
+        metadata: {
+          paymentId: input.paymentId,
+          reason: input.reason || 'Refund requested',
+        },
+      }),
+    });
+    if (!res.ok) {
+      const msg = res.json?.error?.message || `HTTP ${res.status}`;
+      throw new Error(`Stripe refund failed: ${msg}`);
+    }
+    return { providerRefundId: res.json?.id || undefined };
   },
 
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: Buffer): VerifyResult {

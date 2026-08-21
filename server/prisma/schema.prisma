@@ -6,7 +6,7 @@
 //  * Every business entity carries `orgId` → Organization for hard multi-tenant isolation.
 //  * Enums are modelled as String fields (SQLite doesn't support Prisma enums);
 //    valid values are documented in comments and enforced by server-side zod validators.
-//  * Money is stored as Float (₹). Swap to Decimal/Int-paise when moving to Postgres.
+//  * Money is stored as Int (paise). Postgres-compatible as-is — no swap needed.
 
 generator client {
   provider = "prisma-client-js"
@@ -59,6 +59,51 @@ model Organization {
   referredBy   Referral? @relation("ReferredOrg")
   roles        Role[]
   teams        Team[]
+  companies    Company[]
+  companyContacts CompanyContact[]
+  savedSearches SavedSearch[]
+  lists        List[]
+  listMembers  ListMember[]
+  dataProviders DataProvider[]
+  dataProvenances DataProvenance[]
+  icps         Icp[]
+  personas     Persona[]
+  scoringRules ScoringRule[]
+  intentSignals IntentSignal[]
+  companySignals CompanySignal[]
+  sequences    Sequence[]
+  sequenceEnrollments SequenceEnrollment[]
+  sequenceEmailLogs SequenceEmailLog[]
+  deliverabilityMetrics DeliverabilityMetric[]
+  calls              Call[]
+  meetings           Meeting[]
+  conversationAnalyses ConversationAnalysis[]
+  workflowNodes WorkflowNode[]
+  workflowTemplates WorkflowTemplate[]
+  aiResearchReports AiResearchReport[]
+  aiRecommendations AiRecommendation[]
+  forms              Form[]
+  formSubmissions    FormSubmission[]
+  inboundRules       InboundRule[]
+  websiteVisits      WebsiteVisit[]
+  meetingPreps       MeetingPrep[]
+  analyticsSnapshots AnalyticsSnapshot[]
+  consentRecords     ConsentRecord[]
+  suppressionEntries SuppressionEntry[]
+  retentionPolicies  RetentionPolicy[]
+  exportJobs         ExportJob[]
+  dataAccessRequests DataAccessRequest[]
+  apiKeys            ApiKey[]
+  webhookEndpoints   WebhookEndpoint[]
+  savedReports       SavedReport[]
+  territories        Territory[]
+  accountOwnerships  AccountOwnership[]
+  coachingInsights   CoachingInsight[]
+  forecastEntries    ForecastEntry[]
+  scheduledMessages  ScheduledMessage[]
+  scheduledMessageLogs ScheduledMessageLog[]
+  emailTemplates EmailTemplate[]
+  scheduledReports ScheduledReport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -97,6 +142,11 @@ model User {
   mfa           MfaSecret?
   recoveryCodes RecoveryCode[]
   loginHistory  LoginHistory[]
+  ownedTerritories Territory[] @relation("TerritoryOwner")
+  ownedAccounts   AccountOwnership[] @relation("AccountOwner")
+  coOwnedAccounts AccountOwnership[] @relation("AccountCoOwner")
+  coachingInsights CoachingInsight[]
+  forecastEntries  ForecastEntry[] @relation("ForecastUser")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -162,6 +212,7 @@ model Lead {
   conversations Conversation[]
   contacts   Contact[]
   qrScans    QrScan[]
+  meetings   Meeting[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -413,6 +464,7 @@ model Invoice {
   status         String       @default("DRAFT") // DRAFT | SENT | PARTIALLY_PAID | PAID | OVERDUE | CANCELLED
   dueDate        DateTime?
   terms          String?
+  metadata       Json?        // e-invoice IRN, e-way bill EWB, provider details
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -716,6 +768,7 @@ model AutomationRule {
   runCount      Int              @default(0)
   lastRunAt     DateTime?
   runs          AutomationRun[]
+  workflowNodes WorkflowNode[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
@@ -988,3 +1041,1543 @@ model Team {
   @@unique([orgId, name])
   @@index([orgId])
 }
+
+// ────────────────────────────────────────────────────────────
+// Phase 1: B2B Company Database
+// ────────────────────────────────────────────────────────────
+
+model Company {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name           String
+  legalName      String?
+  website        String?
+  domain         String?
+  industry       String?      // TECHNOLOGY | HEALTHCARE | FINANCE | MANUFACTURING | etc.
+  subIndustry    String?
+  description    String?
+  foundedYear    Int?
+  employeeCount  Int?         // estimated headcount
+  employeeRange  String?      // 1-10 | 11-50 | 51-200 | 201-500 | 501-1000 | 1001-5000 | 5001-10000 | 10001+
+  employeeGrowth Float?       // % YoY growth
+  revenueRange   String?      // 0-1M | 1M-10M | 10M-50M | 50M-100M | 100M-500M | 500M-1B | 1B+
+  fundingTotal   Int?         // total funding in paise
+  fundingRounds  Json?        // [{ round, amount, date, investor }]
+  headquarters   String?
+  country        String?
+  state          String?
+  city           String?
+  postalCode     String?
+  technologies   Json?        // string[] — tech stack
+  socialProfiles Json?        // { linkedin, twitter, facebook, crunchbase }
+  phone          String?
+  emailDomains   Json?        // string[]
+  naicsCode      String?
+  sicCode        String?
+  companyType    String?      // PRIVATE | PUBLIC | NON_PROFIT | GOVERNMENT | PARTNERSHIP
+  ownership      String?
+  parentCompanyId String?
+  subsidiaries   Json?        // string[]
+  status         String       @default("ACTIVE") // ACTIVE | INACTIVE | ARCHIVED
+  score          Int          @default(0)         // 0-100 account score
+  tags           Json?        // string[]
+  customFields   Json?        // Record<string, string>
+  deletedAt      DateTime?
+
+  contacts       CompanyContact[]
+  websiteVisits  WebsiteVisit[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([orgId, domain])
+  @@index([orgId, industry])
+  @@index([orgId, country])
+  @@index([orgId, employeeCount])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+model CompanyContact {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  companyId   String
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  firstName   String
+  lastName    String?
+  fullName    String?
+  jobTitle    String?
+  department  String?      // ENGINEERING | SALES | MARKETING | FINANCE | HR | LEGAL | OPERATIONS | EXECUTIVE
+  seniority   String?      // C_LEVEL | VP | DIRECTOR | MANAGER | SENIOR | STAFF | INTERN
+  email       String?
+  emailStatus String?      // VALID | INVALID | RISKY | UNKNOWN | CATCH_ALL | DISPOSABLE
+  phone       String?
+  mobile      String?
+  location    String?
+  linkedinUrl String?
+  otherProfiles Json?      // { twitter, github, website }
+  yearsAtCompany Int?
+  employmentHistory Json?  // [{ company, title, startDate, endDate }]
+  education   Json?        // [{ school, degree, field, startYear, endYear }]
+  skills      Json?        // string[]
+  notes       String?
+  tags        Json?        // string[]
+  score       Int          @default(0) // 0-100 contact score
+  status      String       @default("ACTIVE") // ACTIVE | INACTIVE | ARCHIVED
+  deletedAt   DateTime?
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([orgId, email])
+  @@index([orgId, companyId])
+  @@index([orgId, seniority])
+  @@index([orgId, department])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 1: Data Provider Abstraction
+// ────────────────────────────────────────────────────────────
+
+model DataProvider {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String       // e.g. "clearbit", "apollo", "csv-import", "website"
+  type        String       // COMPANY_SEARCH | CONTACT_SEARCH | ENRICHMENT | VERIFICATION | INTENT
+  baseUrl     String?
+  config      Json?        // provider-specific config (API key kept server-side only)
+  enabled     Boolean      @default(true)
+  priority    Int          @default(0) // higher = tried first in waterfall
+  costPerQuery Int         @default(0) // paise per query
+  status      String       @default("ACTIVE") // ACTIVE | ERROR | DISABLED
+  lastError   String?
+  lastUsedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  dataProvenances DataProvenance[]
+
+  @@unique([orgId, name])
+  @@index([orgId, type])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 1: Data Provenance Tracking
+// ────────────────────────────────────────────────────────────
+
+model DataProvenance {
+  id            String       @id @default(cuid())
+  orgId         String
+  org           Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  providerId    String?
+  provider      DataProvider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  // COMPANY | CONTACT | LEAD
+  entityType    String
+  entityId      String
+  // e.g. "email", "phone", "linkedinUrl", "employeeCount", "revenueRange"
+  fieldName     String
+  value         String?
+  source        String       // provider name or "user" | "csv" | "website" | "manual"
+  sourceId      String?      // external record ID from the provider
+  confidence    Float?       // 0-1, provider-reported confidence
+  verifiedAt    DateTime?
+  collectedAt   DateTime     @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, fieldName])
+  @@index([orgId, providerId])
+  @@index([orgId, collectedAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 2: Saved Searches
+// ────────────────────────────────────────────────────────────
+
+model SavedSearch {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId      String?
+  name        String
+  description String?
+  // "companies" | "contacts" | "leads"
+  entityType  String       @default("companies")
+  filters     Json         // { industry: [...], employeeRange: [...], ... }
+  resultCount Int          @default(0)
+  isShared    Boolean      @default(false)
+  alertEnabled Boolean     @default(false)
+  lastAlertAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([orgId, userId])
+  @@index([orgId, entityType])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 2: Lists (static + dynamic)
+// ────────────────────────────────────────────────────────────
+
+model List {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  type        String       @default("STATIC") // STATIC | DYNAMIC
+  entityType  String       @default("companies") // companies | contacts | leads
+  // For dynamic lists: the filter criteria
+  filters     Json?
+  memberCount Int          @default(0)
+  tags        Json?        // string[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  members     ListMember[]
+
+  @@unique([orgId, name])
+  @@index([orgId, entityType])
+}
+
+model ListMember {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  listId      String
+  list        List         @relation(fields: [listId], references: [id], onDelete: Cascade)
+  // COMPANY | CONTACT | LEAD
+  entityType  String
+  entityId    String
+  addedAt     DateTime     @default(now())
+
+  @@unique([listId, entityType, entityId])
+  @@index([orgId, listId])
+  @@index([orgId, entityType, entityId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 3: ICP (Ideal Customer Profile) Builder
+// ────────────────────────────────────────────────────────────
+
+model Icp {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  // Company criteria
+  industries      Json?        // string[]
+  subIndustries   Json?        // string[]
+  employeeRanges  Json?        // string[]
+  revenueRanges   Json?        // string[]
+  countries       Json?        // string[]
+  states          Json?        // string[]
+  cities          Json?        // string[]
+  companyTypes    Json?        // string[]
+  technologies    Json?        // string[]
+  fundingRanges   Json?        // string[]
+  foundedAfter    Int?
+  foundedBefore   Int?
+  // Contact criteria
+  jobTitles       Json?        // string[]
+  seniorities     Json?        // string[]
+  departments     Json?        // string[]
+  // Behavioral criteria
+  buyingSignals   Json?        // string[]
+  painPoints      Json?        // string[]
+  keywords        Json?        // string[]
+  // AI-generated
+  aiSummary       String?
+  aiRecommendations Json?      // [{ field, reason, confidence }]
+  matchScore      Int          @default(0) // 0-100, how well this ICP matches existing data
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, isActive])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 3: Persona Builder
+// ────────────────────────────────────────────────────────────
+
+model Persona {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  // Target role criteria
+  jobTitles       Json?        // string[]
+  seniorities     Json?        // string[]
+  departments     Json?        // string[]
+  // Context
+  industries      Json?        // string[]
+  companySizes    Json?        // string[] — employee ranges
+  locations       Json?        // string[]
+  // Messaging
+  painPoints      Json?        // string[]
+  goals           Json?        // string[]
+  objections      Json?        // string[]
+  messagingTips   Json?        // string[]
+  valuePropositions Json?      // string[]
+  // Engagement
+  preferredChannels Json?      // string[] — email, phone, linkedin, etc.
+  bestApproach    String?
+  // Stats
+  contactCount    Int          @default(0) // contacts matching this persona
+  avgScore        Float        @default(0) // average score of matching contacts
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, isActive])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 5: Configurable Lead Scoring Rules
+// ────────────────────────────────────────────────────────────
+
+model ScoringRule {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  field       String
+  operator    String
+  value       Json?
+  points      Int          @default(0)
+  enabled     Boolean      @default(true)
+  priority    Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, enabled])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 5: Buying Intent Signals
+// ────────────────────────────────────────────────────────────
+
+model IntentSignal {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  companyId   String?
+  contactId   String?
+  type        String
+  topic       String?
+  source      String
+  confidence  Float        @default(0)
+  metadata    Json?
+  lastSeenAt  DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId, companyId])
+  @@index([orgId, contactId])
+  @@index([orgId, type])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 5: Company Signals
+// ────────────────────────────────────────────────────────────
+
+model CompanySignal {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  companyId   String
+  type        String
+  title       String
+  description String?
+  source      String
+  confidence  Float        @default(0)
+  evidence    Json?
+  metadata    Json?
+  detectedAt  DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId, companyId])
+  @@index([orgId, type])
+  @@index([orgId, detectedAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 6: Email Sequences
+// ────────────────────────────────────────────────────────────
+
+model Sequence {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  status          String       @default("DRAFT")
+  steps           SequenceStep[]
+  enrollments     SequenceEnrollment[]
+  totalEnrolled   Int          @default(0)
+  totalCompleted  Int          @default(0)
+  totalReplied    Int          @default(0)
+  totalBounced    Int          @default(0)
+  totalUnsubscribed Int        @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, status])
+}
+
+model SequenceStep {
+  id          String       @id @default(cuid())
+  sequenceId  String
+  sequence    Sequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  orgId       String
+  order       Int
+  type        String
+  subject     String?
+  body        String?
+  templateId  String?
+  waitDays    Int?
+  waitHours   Int?
+  conditionType String?
+  conditionValue String?
+  aiPrompt    String?
+  aiAction    String?
+  enabled     Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  @@index([sequenceId, order])
+}
+
+model SequenceEnrollment {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sequenceId      String
+  sequence        Sequence     @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  contactId       String?
+  leadId          String?
+  email           String
+  status          String       @default("ENROLLED")
+  currentStep     Int          @default(0)
+  nextActionAt    DateTime?
+  lastActivityAt  DateTime?
+  replies         Int          @default(0)
+  opens           Int          @default(0)
+  clicks          Int          @default(0)
+  metadata        Json?
+  enrolledAt      DateTime     @default(now())
+  completedAt     DateTime?
+  emailLogs       SequenceEmailLog[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([sequenceId, email])
+  @@index([orgId, status])
+  @@index([orgId, sequenceId])
+  @@index([orgId, nextActionAt])
+}
+
+model SequenceEmailLog {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  enrollmentId    String
+  enrollment      SequenceEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  stepId          String
+  status          String
+  subject         String?
+  body            String?
+  errorMessage    String?
+  sentAt          DateTime     @default(now())
+  deliveredAt     DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  bouncedAt       DateTime?
+
+  @@index([orgId, enrollmentId])
+  @@index([orgId, status])
+  @@index([orgId, sentAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 6: Deliverability Center
+// ────────────────────────────────────────────────────────────
+
+model DeliverabilityMetric {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  date        DateTime     @default(now())
+  domain      String?
+  sent        Int          @default(0)
+  delivered   Int          @default(0)
+  bounced     Int          @default(0)
+  opened      Int          @default(0)
+  clicked     Int          @default(0)
+  replied     Int          @default(0)
+  unsubscribed Int         @default(0)
+  spamComplaints Int       @default(0)
+  deliverabilityScore Int   @default(100)
+  reputationScore     Int   @default(100)
+  createdAt   DateTime     @default(now())
+
+  @@unique([orgId, date, domain])
+  @@index([orgId, date])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 7: Calling / Dialer
+// ────────────────────────────────────────────────────────────
+
+model Call {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId          String?
+  contactId       String?
+  userId          String?
+  // OUTBOUND | INBOUND
+  direction       String       @default("OUTBOUND")
+  // CONNECTED | NO_ANSWER | BUSY | VOICEMAIL | FAILED | CANCELLED
+  status          String
+  fromNumber      String?
+  toNumber        String?
+  durationSeconds Int          @default(0)
+  // DISPOSITION codes
+  disposition     String?      // CONNECTED | LEFT_VOICEMAIL | CALLBACK | NOT_INTERESTED | INTERESTED | MEETING_BOOKED | DO_NOT_CALL | WRONG_NUMBER
+  notes           String?
+  recordingUrl    String?
+  recordingConsent Boolean     @default(false)
+  // AI-generated
+  transcript      String?
+  summary         String?
+  sentiment       String?      // POSITIVE | NEUTRAL | NEGATIVE
+  actionItems     Json?        // string[]
+  metadata        Json?
+  startedAt       DateTime?
+  endedAt         DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId, leadId])
+  @@index([orgId, userId])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 7: Meeting Scheduler
+// ────────────────────────────────────────────────────────────
+
+model Meeting {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leadId          String?
+  lead            Lead?        @relation(fields: [leadId], references: [id])
+  contactId       String?
+  hostId          String?
+  title           String
+  description     String?
+  // SCHEDULED | COMPLETED | CANCELLED | NO_SHOW
+  status          String       @default("SCHEDULEED")
+  meetingType     String       @default("1_1") // 1_1 | ROUND_ROBIN | TEAM | MULTI_HOST
+  startAt         DateTime
+  endAt           DateTime
+  durationMinutes Int          @default(30)
+  timezone        String       @default("Asia/Kolkata")
+  // Calendar integration
+  calendarEventId String?
+  calendarProvider String?     // google | microsoft
+  meetingUrl      String?
+  // Pre/post meeting
+  prepNotes       String?
+  summary         String?
+  actionItems     Json?        // string[]
+  followUpTaskId  String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, hostId])
+  @@index([orgId, leadId])
+  @@index([orgId, status])
+  @@index([orgId, startAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 8: Conversation Intelligence
+// ────────────────────────────────────────────────────────────
+
+model ConversationAnalysis {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  callId          String?
+  meetingId       String?
+  contactId       String?
+  companyId       String?
+  // ANALYSIS types
+  type            String       // CALL_SUMMARY | MEETING_SUMMARY | TOPIC_ANALYSIS | OBJECTION_TRACKING | SENTIMENT
+  summary         String?
+  topics          Json?        // string[]
+  objections      Json?        // [{ objection, response, resolved }]
+  competitors     Json?        // string[]
+  pricingDiscussed Boolean     @default(false)
+  buyingSignals   Json?        // string[]
+  nextSteps       Json?        // string[]
+  sentiment       String?      // POSITIVE | NEUTRAL | NEGATIVE
+  riskLevel       String?      // LOW | MEDIUM | HIGH
+  sentimentScore  Float?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId, callId])
+  @@index([orgId, meetingId])
+  @@index([orgId, contactId])
+  @@index([orgId, type])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 9: Visual Workflow Builder
+// ────────────────────────────────────────────────────────────
+
+model WorkflowNode {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ruleId          String?
+  rule            AutomationRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  // TRIGGER | CONDITION | ACTION | DELAY | BRANCH | AI_ACTION
+  nodeType        String
+  label           String
+  config          Json?
+  positionX       Float        @default(0)
+  positionY       Float        @default(0)
+  // JSON array of node IDs this connects to
+  connections     Json?
+  // JSON array of branch paths [{label, connectionId}]
+  branches        Json?
+  enabled         Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, ruleId])
+  @@index([orgId, nodeType])
+}
+
+model WorkflowTemplate {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  category        String       @default("GENERAL")
+  // Template data: nodes, connections, trigger config, action configs
+  templateData    Json
+  isSystem        Boolean      @default(false)
+  useCount        Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, category])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 10: AI Research & Recommendations
+// ────────────────────────────────────────────────────────────
+
+model AiResearchReport {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId          String?
+  // COMPANY_RESEARCH | CONTACT_RESEARCH | DEAL_RESEARCH | COMPETITOR_RESEARCH
+  reportType      String
+  companyId       String?
+  contactId       String?
+  leadId          String?
+  title           String
+  summary         String?
+  // Structured sections: overview, business_model, pain_points, stakeholders, signals, recommendations
+  sections        Json
+  sources         Json?        // [{title, url, snippet}]
+  confidence      Float        @default(0)
+  // FACT | INFERENCE | AI_SUGGESTION — labels per section
+  sectionLabels   Json?
+  tokensUsed      Int          @default(0)
+  costPaise       Int          @default(0)
+  provider        String?
+  model           String?
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId, reportType])
+  @@index([orgId, companyId])
+  @@index([orgId, contactId])
+  @@index([orgId, userId])
+  @@index([orgId, createdAt])
+}
+
+model AiRecommendation {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId          String?
+  // NEXT_BEST_LEAD | NEXT_BEST_ACTION | DEAL_RISK | CROSS_SELL | UPSELL | REACTIVATION
+  type            String
+  // lead | company | deal | contact
+  entityType      String
+  entityId        String
+  title           String
+  reasoning       String
+  confidence      Float        @default(0)
+  priority        String       @default("MEDIUM")
+  // PENDING | ACCEPTED | DISMISSED | EXPIRED
+  status          String       @default("PENDING")
+  metadata        Json?
+  expiresAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, type])
+  @@index([orgId, entityType, entityId])
+  @@index([orgId, userId, status])
+  @@index([orgId, status, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 11: Forms Builder
+// ────────────────────────────────────────────────────────────
+
+model Form {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  // Embed code, webhook URL, success redirect
+  slug            String
+  fields          Json         // [{name, label, type, required, placeholder, options}]
+  // Submission action: CREATE_LEAD | CREATE_CONTACT | WEBHOOK | EMAIL_NOTIFY
+  submitAction    String       @default("CREATE_LEAD")
+  submitConfig    Json?        // {webhookUrl, email, pipeline, stageId, assignTo}
+  // Spam protection
+  captchaEnabled  Boolean      @default(false)
+  // UTM tracking
+  utmTracking     Boolean      @default(true)
+  // Styling
+  theme           String?      // LIGHT | DARK | BRANDED
+  customCss       String?
+  // Stats
+  totalSubmissions Int         @default(0)
+  isActive        Boolean      @default(true)
+  submissions    FormSubmission[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, slug])
+  @@index([orgId, isActive])
+}
+
+model FormSubmission {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  formId          String
+  form            Form         @relation(fields: [formId], references: [id], onDelete: Cascade)
+  // Submission data: {fieldName: value}
+  data            Json
+  // Source tracking
+  source          String?      // direct | social | ad | referral
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmContent      String?
+  // Visitor identification
+  ipAddress       String?
+  userAgent       String?
+  referer         String?
+  // Processing
+  status          String       @default("NEW") // NEW | PROCESSED | DUPLICATE | SPAM | CONVERTED
+  // Created entities
+  leadId          String?
+  contactId       String?
+  processedAt     DateTime?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId, formId])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 11: Inbound Lead Routing
+// ────────────────────────────────────────────────────────────
+
+model InboundRule {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  // Conditions: {country, employeeRange, industry, source, leadScore, formId}
+  conditions      Json
+  // Actions: {assignTo, notifyUserIds, createTask, enrollSequence, addTag, changeStage, changePriority}
+  actions         Json
+  // Priority (lower = higher priority, evaluated in order)
+  priority        Int          @default(100)
+  isActive        Boolean      @default(true)
+  runCount        Int          @default(0)
+  lastRunAt       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, isActive, priority])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 11: Website Visitor Tracking
+// ────────────────────────────────────────────────────────────
+
+model WebsiteVisit {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Visitor identification
+  anonymousId     String       // first-party anonymous cookie ID
+  // Company identification (where available from IP/fingerprint)
+  companyId       String?
+  company         Company?     @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  // Session info
+  sessionId       String?
+  pageUrl         String
+  pageTitle       String?
+  referrer        String?
+  // UTM params
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmContent      String?
+  // Visitor info
+  ipAddress       String?
+  userAgent       String?
+  country         String?
+  city            String?
+  // Scoring
+  visitScore      Int          @default(0)
+  isIdentified    Boolean      @default(false)
+  // Matched lead/contact
+  leadId          String?
+  contactId       String?
+  metadata        Json?
+  visitedAt       DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId, anonymousId])
+  @@index([orgId, companyId])
+  @@index([orgId, visitedAt])
+  @@index([orgId, isIdentified])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 12: Meeting Intelligence
+// ────────────────────────────────────────────────────────────
+
+model MeetingPrep {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  meetingId       String?
+  contactId       String?
+  companyId       String?
+  // Pre-meeting research
+  companyOverview String?
+  contactProfile  String?
+  previousInteractions Json?   // [{type, date, summary}]
+  openDeals       Json?        // [{id, name, value, stage}]
+  recentEmails    Json?        // [{subject, date, snippet}]
+  suggestedQuestions Json?     // [{question, reason}]
+  talkingPoints   Json?        // [string]
+  // Post-meeting
+  summary         String?
+  actionItems     Json?        // [{action, assignee, dueDate}]
+  followUpTasks   Json?        // [{title, type, dueDate}]
+  dealRisk        String?      // LOW | MEDIUM | HIGH
+  dealRiskReason  String?
+  sentiment       String?      // POSITIVE | NEUTRAL | NEGATIVE
+  // AI generation metadata
+  tokensUsed      Int          @default(0)
+  provider        String?
+  model           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, meetingId])
+  @@index([orgId, contactId])
+  @@index([orgId, companyId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 12: Analytics Snapshots
+// ────────────────────────────────────────────────────────────
+
+model AnalyticsSnapshot {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // DAILY | WEEKLY | MONTHLY
+  period          String       @default("DAILY")
+  date            DateTime
+  // Metrics
+  newLeads        Int          @default(0)
+  qualifiedLeads  Int          @default(0)
+  dealsCreated    Int          @default(0)
+  dealsWon        Int          @default(0)
+  dealsLost       Int          @default(0)
+  revenueWon      Int          @default(0) // in paise
+  revenuePipeline Int          @default(0) // in paise
+  emailsSent      Int          @default(0)
+  emailsOpened    Int          @default(0)
+  emailsReplied   Int          @default(0)
+  emailsBounced   Int          @default(0)
+  callsMade       Int          @default(0)
+  callsConnected  Int          @default(0)
+  meetingsBooked  Int          @default(0)
+  meetingsHeld    Int          @default(0)
+  tasksCompleted  Int          @default(0)
+  sequencesEnrolled Int        @default(0)
+  websiteVisits   Int          @default(0)
+  formSubmissions Int          @default(0)
+  // Per-rep breakdown (JSON)
+  byUser          Json?        // [{userId, name, leads, deals, revenue}]
+  // Per-source breakdown
+  bySource        Json?        // [{source, leads, deals, revenue}]
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+
+  @@unique([orgId, period, date])
+  @@index([orgId, period])
+  @@index([orgId, date])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 13: Data Protection & Compliance
+// ────────────────────────────────────────────────────────────
+
+model ConsentRecord {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Contact-level consent
+  contactId       String?
+  companyId       String?
+  // Consent details
+  type            String       // MARKETING_EMAIL | MARKETING_SMS | MARKETING_CALL | DATA_PROCESSING | DATA_SHARING | COOKIES | THIRD_PARTY
+  status          String       // GRANTED | DENIED | WITHDRAWN | EXPIRED | PENDING
+  // Source & evidence
+  source          String?      // FORM | EMAIL_REPLY | WEBSITE | API | PHONE | MANUAL | IMPORT
+  sourceRef       String?      // reference to form/submission/etc
+  evidence        String?      // free-text or JSON evidence
+  // IP & location at consent time
+  ipAddress       String?
+  userAgent       String?
+  geoLocation     String?
+  // Lifecycle
+  grantedAt       DateTime?
+  withdrawnAt     DateTime?
+  expiresAt       DateTime?
+  // Compliance
+  lawfulBasis     String?      // CONSENT | LEGITIMATE_INTEREST | CONTRACT | LEGAL_OBLIGATION
+  version         String?      // policy version when consent was given
+  // Verification
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, type])
+  @@index([orgId, contactId])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+model SuppressionEntry {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // What is suppressed
+  type            String       // EMAIL | EMAIL_DOMAIN | PHONE | IP | CONTACT | DOMAIN
+  value           String       // the suppressed value (email, domain, phone, etc.)
+  contactId       String?
+  companyId       String?
+  // Reason
+  reason          String       // UNSUBSCRIBE | BOUNCE | SPAM_COMPLAINT | MANUAL | REGULATION | DOMAIN_BLOCK
+  reasonDetail    String?
+  // Source
+  source          String?      // AUTOMATIC | MANUAL | API | WEBHOOK
+  sourceRef       String?      // reference to bounce/complaint event
+  // Scope
+  isGlobal        Boolean      @default(false) // suppress across all sequences
+  // Lifecycle
+  suppressedAt    DateTime     @default(now())
+  expiresAt       DateTime?    // temporary suppression
+  removedAt       DateTime?
+  removedBy       String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, type, value])
+  @@index([orgId, type])
+  @@index([orgId, contactId])
+  @@index([orgId, value])
+  @@index([orgId, createdAt])
+}
+
+model RetentionPolicy {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  // What entity this applies to
+  entityType      String       // CONTACT | COMPANY | LEAD | CONVERSATION | CALL_RECORDING | FORM_SUBMISSION | ACTIVITY | AUDIT_LOG | ALL
+  // Retention settings
+  retentionDays   Int          // days to keep records
+  autoDelete      Boolean      @default(false) // auto-delete or flag for review
+  // Actions
+  actionBeforeDelete String?    // ANONYMIZE | ARCHIVE | EXPORT | NOTIFY | NONE
+  notifyBeforeDelete Boolean   @default(false)
+  notifyEmail     String?
+  notifyDaysBefore Int?
+  // Status
+  isActive        Boolean      @default(true)
+  lastRunAt       DateTime?
+  recordsDeleted  Int          @default(0)
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, entityType])
+  @@index([orgId, isActive])
+}
+
+model ExportJob {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [id], references: [id], onDelete: Cascade)
+  userId          String
+  // What is being exported
+  entityType      String       // CONTACT | COMPANY | LEAD | ACTIVITY | REPORT
+  format          String       @default("CSV") // CSV | EXCEL | JSON | PDF
+  // Filters applied
+  filters         Json?
+  // Status
+  status          String       @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED
+  // Results
+  recordCount     Int          @default(0)
+  fileUrl         String?
+  fileSize        Int?
+  // Security
+  ipAddress       String?
+  downloadCount   Int          @default(0)
+  expiresAt       DateTime?
+  error           String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, userId])
+  @@index([orgId, status])
+  @@index([orgId, entityType])
+  @@index([orgId, createdAt])
+}
+
+model DataAccessRequest {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [id], references: [id], onDelete: Cascade)
+  // Requester
+  userId          String?
+  contactEmail    String?      // for external data subjects
+  contactId       String?
+  // Request type
+  type            String       // ACCESS | DELETION | RECTIFICATION | PORTABILITY | RESTRICTION | OBJECTION
+  // Status
+  status          String       @default("PENDING") // PENDING | IN_PROGRESS | COMPLETED | DENIED | EXPIRED
+  // Details
+  description     String?
+  responseNotes   String?
+  // Actions taken
+  dataProvided    Boolean      @default(false)
+  dataDeleted     Boolean      @default(false)
+  dataAnonymized  Boolean      @default(false)
+  // Compliance
+  deadlineAt      DateTime?    // GDPR: 30 days
+  completedAt     DateTime?
+  completedBy     String?
+  ipAddress       String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, status])
+  @@index([orgId, type])
+  @@index([orgId, userId])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 14: API Keys & Webhook Platform
+// ────────────────────────────────────────────────────────────
+
+model ApiKey {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Key details
+  name            String
+  keyPrefix       String       // first 8 chars for identification (e.g. "pk_live_a")
+  keyHash         String       // bcrypt/scrypt hash of the full key
+  // Scoping
+  scopes          Json         // ["contacts.read", "companies.read", "leads.write"]
+  rateLimit       Int?         // per-minute limit override
+  // Status
+  isActive        Boolean      @default(true)
+  // Usage tracking
+  lastUsedAt      DateTime?
+  lastUsedIp      String?
+  totalRequests   Int          @default(0)
+  // Lifecycle
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  revokedReason   String?
+  createdBy       String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, isActive])
+  @@index([keyPrefix])
+  @@index([orgId, createdAt])
+}
+
+model WebhookEndpoint {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Endpoint details
+  name            String
+  url             String
+  // Secret for HMAC signature validation
+  secret          String?
+  // Events to subscribe to
+  events          Json         // ["lead.created", "lead.updated", "deal.won", "contact.enriched"]
+  // Security
+  ipWhitelist     Json?        // ["1.2.3.4", "5.6.7.0/24"]
+  signatureHeader String?      @default("x-webhook-signature")
+  // Retry config
+  retryPolicy     String?      // LINEAR | EXPONENTIAL | NONE
+  maxRetries      Int          @default(3)
+  timeoutMs       Int          @default(5000)
+  // Status
+  isActive        Boolean      @default(true)
+  status          String       @default("ACTIVE") // ACTIVE | PAUSED | ERROR | DISABLED
+  // Stats
+  totalDeliveries Int          @default(0)
+  successCount    Int          @default(0)
+  failureCount    Int          @default(0)
+  lastTriggeredAt DateTime?
+  lastStatus      String?      // SUCCESS | FAILED | TIMEOUT
+  lastError       String?
+  deliveries      WebhookDelivery[]
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, isActive])
+  @@index([orgId, createdAt])
+}
+
+model WebhookDelivery {
+  id              String       @id @default(cuid())
+  orgId           String
+  endpointId      String
+  endpoint        WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  // Event details
+  event           String       // "lead.created", "deal.won", etc.
+  payload         Json
+  // Delivery
+  status          String       @default("PENDING") // PENDING | DELIVERING | SUCCESS | FAILED | RETRYING
+  httpStatus      Int?
+  responseBody    String?
+  responseHeaders Json?
+  // Retry
+  attempt         Int          @default(1)
+  maxAttempts     Int          @default(3)
+  nextRetryAt     DateTime?
+  // Security
+  signature       String?      // HMAC signature sent
+  ipAddress       String?
+  // Timing
+  durationMs      Int?
+  error           String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([orgId, endpointId])
+  @@index([orgId, event])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 16: Custom Report Builder
+// ────────────────────────────────────────────────────────────
+
+model SavedReport {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  // Report config
+  entityType      String       // CONTACT | COMPANY | DEAL | LEAD | SEQUENCE | CALL | MEETING
+  metrics         Json         // [{field, fn: COUNT|SUM|AVG|MIN|MAX}]
+  dimensions      Json         // [{field, groupBy}] — x-axis / groupings
+  filters         Json?        // saved filter state
+  // Display
+  chartType       String       @default("TABLE") // TABLE | BAR | LINE | PIE | FUNNEL | AREA
+  dateRange       String?      // 7d | 30d | 90d | custom
+  dateField       String?      // createdAt | updatedAt | closedAt
+  // Sharing
+  isPublic        Boolean      @default(false)
+  sharedWithUserIds String  @default("[]") // JSON array of user IDs
+  sharedWithTeamIds String  @default("[]") // JSON array of team IDs
+  // Scheduling
+  scheduledCron   String?      // cron expression for auto-refresh
+  lastGeneratedAt DateTime?
+  // Stats
+  viewCount       Int          @default(0)
+  lastViewedAt    DateTime?
+  // Ownership
+  createdBy       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, entityType])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 17: Territory Management & Account Ownership
+// ────────────────────────────────────────────────────────────
+
+model Territory {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  // Territory criteria (JSON-serialized rules)
+  countries   String       @default("[]") // JSON array
+  states      String       @default("[]") // JSON array
+  cities      String       @default("[]") // JSON array
+  zipCodes    String       @default("[]") // JSON array
+  industries  String       @default("[]") // JSON array
+  employeeRanges String   @default("[]") // JSON array
+  // Ownership
+  ownerId     String?
+  owner       User?        @relation("TerritoryOwner", fields: [ownerId], references: [id])
+  teamId      String?
+  isActive    Boolean      @default(true)
+  accounts    AccountOwnership[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([orgId, name])
+  @@index([orgId, isActive])
+}
+
+model AccountOwnership {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Which entity this ownership applies to
+  entityType      String       // COMPANY | LEAD | CONTACT
+  entityId        String
+  // Ownership details
+  ownerId         String
+  owner           User?        @relation("AccountOwner", fields: [ownerId], references: [id])
+  coOwnerId       String?
+  coOwner         User?        @relation("AccountCoOwner", fields: [coOwnerId], references: [id])
+  territoryId     String?
+  territory       Territory?   @relation(fields: [territoryId], references: [id])
+  // History tracking
+  acquiredAt      DateTime     @default(now())
+  lostAt          DateTime?
+  lostReason      String?
+  isActive        Boolean      @default(true)
+  changedBy       String?
+  changeReason    String?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, entityType, entityId, isActive])
+  @@index([orgId, ownerId])
+  @@index([orgId, entityType])
+  @@index([orgId, territoryId])
+  @@index([orgId, isActive])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 18: Sales Coaching & Forecasting
+// ────────────────────────────────────────────────────────────
+
+model CoachingInsight {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId          String       // Rep being coached
+  user            User?        @relation(fields: [userId], references: [id])
+  period          String       // "2024-01" | "2024-W03" | "2024-Q1"
+  periodType      String       @default("MONTH") // WEEK | MONTH | QUARTER
+  // Metrics
+  activityScore   Int          @default(0) // 0-100
+  callMetrics     Json?        // {made, connected, avgDuration, bookings}
+  emailMetrics    Json?        // {sent, opened, replied, positiveReplies}
+  meetingMetrics  Json?        // {held, noShows, conversionRate}
+  pipelineMetrics Json?        // {created, value, won, winRate}
+  // AI coaching
+  strengths       String       @default("[]") // JSON array
+  improvements    String       @default("[]") // JSON array
+  recommendations String       @default("[]") // JSON array
+  summary         String?
+  // Metadata
+  generatedBy     String       @default("SYSTEM") // SYSTEM | MANAGER | AI
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, userId, period])
+  @@index([orgId, period])
+  @@index([orgId, userId])
+}
+
+model ForecastEntry {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Forecast scope
+  period          String       // "2024-01" | "2024-Q1" | "2024"
+  periodType      String       @default("MONTH") // WEEK | MONTH | QUARTER | YEAR
+  userId          String?      // null = org-wide forecast
+  user            User?        @relation("ForecastUser", fields: [userId], references: [id])
+  territoryId     String?
+  // Pipeline data (auto-calculated or manual override)
+  pipelineValue   Int          @default(0) // total pipeline in period
+  commitValue     Int          @default(0) // committed deals
+  bestCaseValue   Int          @default(0) // best case
+  closedWon       Int          @default(0) // already closed won
+  closedLost      Int          @default(0) // already closed lost
+  // Manual overrides
+  manualCommit    Int?
+  manualBestCase  Int?
+  manualPipeline  Int?
+  // Forecast metadata
+  confidence      Float        @default(0) // 0-100 avg confidence
+  dealCount       Int          @default(0)
+  weightedPipeline Int         @default(0)
+  // AI predictions
+  aiPrediction    Int?         // AI-predicted revenue
+  aiConfidence    Float?
+  aiFactors       String       @default("[]") // JSON array of contributing factors
+  // Metadata
+  isLocked        Boolean      @default(false)
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([orgId, period, userId])
+  @@index([orgId, period])
+  @@index([orgId, userId])
+}
+
+// ────────────────────────────────────────────────────────────
+// Scheduled Messaging Queue
+// ────────────────────────────────────────────────────────────
+
+model ScheduledMessage {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId          String?
+  // WHATSAPP | EMAIL | SMS (future)
+  channel         String       @default("WHATSAPP")
+  // DIRECT | SEQUENCE | BROADCAST
+  type            String       @default("DIRECT")
+  // Target
+  recipientPhone  String?
+  recipientEmail  String?
+  recipientName   String?
+  leadId          String?
+  contactId       String?
+  conversationId  String?
+  // Content
+  subject         String?      // email only
+  body            String?
+  templateName    String?      // WhatsApp template name
+  templateParams  Json?        // string[] — template parameter values
+  templateLanguage String?     // e.g. "en"
+  // Scheduling
+  status          String       @default("PENDING") // PENDING | PROCESSING | SENT | DELIVERED | READ | FAILED | CANCELLED
+  scheduledAt     DateTime     // when to send
+  startedAt       DateTime?
+  sentAt          DateTime?
+  failedAt        DateTime?
+  // Retry
+  retryCount      Int          @default(0)
+  maxRetries      Int          @default(3)
+  lastError       String?
+  nextRetryAt     DateTime?
+  // Priority (lower = higher priority)
+  priority        Int          @default(100)
+  // Batch group
+  batchId         String?
+  // Cost tracking
+  providerCostPaise Int        @default(0)
+  providerMessageId String?
+  // Metadata
+  source          String?      // SEQUENCE | BROADCAST | API | MANUAL | AUTOMATION
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  logs            ScheduledMessageLog[]
+
+  @@index([orgId, status])
+  @@index([orgId, scheduledAt])
+  @@index([orgId, channel])
+  @@index([orgId, status, scheduledAt])
+  @@index([orgId, batchId])
+  @@index([status, scheduledAt, priority])
+}
+
+model ScheduledMessageLog {
+  id              String       @id @default(cuid())
+  orgId           String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  messageId       String
+  message         ScheduledMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  // QUEUED | PROCESSING | SENT | DELIVERED | READ | FAILED | RETRYING | CANCELLED
+  status          String
+  // Provider details
+  providerMessageId String?
+  provider        String?
+  httpStatus      Int?
+  responseBody    String?
+  error           String?
+  durationMs      Int?
+  metadata        Json?
+  createdAt       DateTime     @default(now())
+
+  @@index([orgId, messageId])
+  @@index([orgId, status])
+  @@index([orgId, createdAt])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 20: Email Templates
+// ────────────────────────────────────────────────────────────
+
+model EmailTemplate {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy   String
+  name        String
+  description String?
+  category    String       @default("OTHER") // MARKETING | TRANSACTIONAL | FOLLOW_UP | SEQUENCE | NEWSLETTER | OTHER
+  subject     String
+  htmlContent String
+  textContent String?
+  variables   Json?        // [{ name, label, type, required, defaultValue }]
+  fromName    String?
+  fromEmail   String?
+  replyTo     String?
+  tags        Json?        // string[]
+  usageCount  Int          @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([orgId, category])
+  @@index([orgId, name])
+}
+
+// ────────────────────────────────────────────────────────────
+// Phase 20: Scheduled Reports
+// ────────────────────────────────────────────────────────────
+
+model ScheduledReport {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    String
+  name         String
+  description  String?
+  reportConfig Json         // { entity, metrics, dimensions, filters, dateFrom, dateTo }
+  schedule     Json         // { frequency, dayOfWeek, dayOfMonth, hour, timezone }
+  recipients   Json?        // string[]
+  webhookUrl   String?
+  format       String       @default("CSV") // CSV | JSON
+  enabled      Boolean      @default(true)
+  lastRunAt    DateTime?
+  nextRunAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  logs         ScheduledReportLog[]
+
+  @@index([orgId, enabled])
+  @@index([orgId, nextRunAt])
+}
+
+model ScheduledReportLog {
+  id         String          @id @default(cuid())
+  orgId      String
+  reportId   String
+  report     ScheduledReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  status     String          @default("SUCCESS") // SUCCESS | FAILED
+  format     String?
+  rowCount   Int?
+  filename   String?
+  error      String?
+  createdAt  DateTime        @default(now())
+
+  @@index([orgId, reportId])
+  @@index([orgId, createdAt])
+}
+

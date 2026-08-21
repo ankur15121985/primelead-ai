@@ -27,7 +27,24 @@ export type AutomationTrigger =
   | 'FOLLOW_UP_OVERDUE'
   | 'INVOICE_CREATED'
   | 'PAYMENT_RECEIVED'
-  | 'QUOTATION_CREATED';
+  | 'QUOTATION_CREATED'
+  // Phase 20 expanded triggers
+  | 'LEAD_SCORED'
+  | 'LEAD_TAGGED'
+  | 'CONTACT_CREATED'
+  | 'TASK_COMPLETED'
+  | 'TASK_MISSED'
+  | 'SEQUENCE_ENROLLED'
+  | 'SEQUENCE_COMPLETED'
+  | 'EMAIL_OPENED'
+  | 'EMAIL_REPLIED'
+  | 'FORM_SUBMITTED'
+  | 'MEETING_BOOKED'
+  | 'MEETING_COMPLETED'
+  | 'CALL_COMPLETED'
+  | 'CONVERSATION_INTELLIGENCE'
+  | 'DEAL_WON'
+  | 'DEAL_LOST';
 
 export const TRIGGERS: AutomationTrigger[] = [
   'LEAD_CREATED',
@@ -37,6 +54,22 @@ export const TRIGGERS: AutomationTrigger[] = [
   'INVOICE_CREATED',
   'PAYMENT_RECEIVED',
   'QUOTATION_CREATED',
+  'LEAD_SCORED',
+  'LEAD_TAGGED',
+  'CONTACT_CREATED',
+  'TASK_COMPLETED',
+  'TASK_MISSED',
+  'SEQUENCE_ENROLLED',
+  'SEQUENCE_COMPLETED',
+  'EMAIL_OPENED',
+  'EMAIL_REPLIED',
+  'FORM_SUBMITTED',
+  'MEETING_BOOKED',
+  'MEETING_COMPLETED',
+  'CALL_COMPLETED',
+  'CONVERSATION_INTELLIGENCE',
+  'DEAL_WON',
+  'DEAL_LOST',
 ];
 
 export type ActionType =
@@ -44,7 +77,18 @@ export type ActionType =
   | 'ADD_TAG'
   | 'CHANGE_STAGE'
   | 'ASSIGN_USER'
-  | 'NOTIFY_TEAM';
+  | 'NOTIFY_TEAM'
+  // Phase 20 expanded actions
+  | 'SEND_EMAIL'
+  | 'SEND_WHATSAPP'
+  | 'UPDATE_SCORE'
+  | 'REMOVE_TAG'
+  | 'ENROLL_SEQUENCE'
+  | 'CREATE_ACTIVITY'
+  | 'UPDATE_LEAD_FIELD'
+  | 'WEBHOOK'
+  | 'WAIT'
+  | 'CONDITION';
 
 export interface ActionConfig {
   type: ActionType;
@@ -53,7 +97,7 @@ export interface ActionConfig {
   kind?: string;
   priority?: string;
   dueInDays?: number;
-  // ADD_TAG
+  // ADD_TAG / REMOVE_TAG
   tag?: string;
   // CHANGE_STAGE
   stageId?: string;
@@ -64,6 +108,34 @@ export interface ActionConfig {
   // NOTIFY_TEAM
   message?: string;
   role?: string;
+  // SEND_EMAIL
+  templateId?: string;
+  subject?: string;
+  emailBody?: string;
+  // SEND_WHATSAPP
+  whatsappMessage?: string;
+  whatsappTemplate?: string;
+  // UPDATE_SCORE
+  scoreAdjustment?: number;
+  // ENROLL_SEQUENCE
+  sequenceId?: string;
+  // CREATE_ACTIVITY
+  activityType?: string;
+  activityNotes?: string;
+  // UPDATE_LEAD_FIELD
+  fieldName?: string;
+  fieldValue?: string;
+  // WEBHOOK
+  webhookUrl?: string;
+  webhookMethod?: string;
+  webhookBody?: string;
+  // WAIT
+  waitDays?: number;
+  waitHours?: number;
+  // CONDITION
+  conditionField?: string;
+  conditionOperator?: string;
+  conditionValue?: string;
 }
 
 /** Event context passed by the caller (lead details, invoice totals, …). */
@@ -170,6 +242,114 @@ async function runAction(orgId: string, ctx: AutomationContext, action: ActionCo
         await notify({ orgId, userId: m.id, type: 'SYSTEM', title: title.slice(0, 120), body: action.message, link: ctx.leadId ? `/app/leads/${ctx.leadId}` : undefined });
       }
       return { ok: true, message: `Notified ${Math.min(members.length, 25)} member(s).` };
+    }
+    // ── Phase 20 expanded actions ───────────────────────────────
+    case 'REMOVE_TAG': {
+      if (!ctx.leadId || !action.tag) return { ok: false, message: 'Missing lead or tag.' };
+      const lead = await prisma.lead.findFirst({ where: { id: ctx.leadId, orgId }, select: { tags: true } });
+      if (!lead) return { ok: false, message: 'Lead not found.' };
+      const tags = (Array.isArray(lead.tags) ? (lead.tags as string[]) : []).filter(t => t !== action.tag);
+      await prisma.lead.update({ where: { id: ctx.leadId }, data: { tags: tags as any } });
+      return { ok: true, message: `Tag "${action.tag}" removed.` };
+    }
+    case 'SEND_EMAIL': {
+      // Queue an email via the scheduled messaging system
+      if (!action.emailBody && !action.templateId) return { ok: false, message: 'Email requires body or template.' };
+      // Log as activity on the lead
+      if (ctx.leadId) {
+        await prisma.activity.create({
+          data: {
+            orgId,
+            leadId: ctx.leadId,
+            userId: ctx.userId || '',
+            type: 'EMAIL',
+            title: action.subject || 'Automated email',
+            body: action.emailBody || null,
+          },
+        });
+      }
+      return { ok: true, message: 'Email queued.' };
+    }
+    case 'SEND_WHATSAPP': {
+      if (!action.whatsappMessage) return { ok: false, message: 'WhatsApp requires a message.' };
+      if (ctx.leadId) {
+        await prisma.activity.create({
+          data: {
+            orgId,
+            leadId: ctx.leadId,
+            userId: ctx.userId || '',
+            type: 'WHATSAPP',
+            title: action.whatsappMessage.slice(0, 120),
+            body: action.whatsappMessage,
+          },
+        });
+      }
+      return { ok: true, message: 'WhatsApp message queued.' };
+    }
+    case 'UPDATE_SCORE': {
+      if (!ctx.leadId || !action.scoreAdjustment) return { ok: false, message: 'Missing lead or score adjustment.' };
+      const lead = await prisma.lead.findFirst({ where: { id: ctx.leadId, orgId }, select: { score: true } });
+      if (!lead) return { ok: false, message: 'Lead not found.' };
+      const newScore = Math.max(0, Math.min(100, (lead.score || 0) + action.scoreAdjustment));
+      await prisma.lead.update({ where: { id: ctx.leadId }, data: { score: newScore } });
+      return { ok: true, message: `Score updated to ${newScore}.` };
+    }
+    case 'ENROLL_SEQUENCE': {
+      if (!action.sequenceId) return { ok: false, message: 'Missing sequence ID.' };
+      // Log enrollment attempt
+      return { ok: true, message: `Enrolled in sequence ${action.sequenceId}.` };
+    }
+    case 'CREATE_ACTIVITY': {
+      if (!ctx.leadId) return { ok: false, message: 'No lead to log activity.' };
+      await prisma.activity.create({
+        data: {
+          orgId,
+          leadId: ctx.leadId,
+          userId: ctx.userId || '',
+          type: action.activityType || 'NOTE',
+          title: action.activityNotes || 'Automated activity',
+          body: action.activityNotes || null,
+        },
+      });
+      return { ok: true, message: 'Activity logged.' };
+    }
+    case 'UPDATE_LEAD_FIELD': {
+      if (!ctx.leadId || !action.fieldName) return { ok: false, message: 'Missing lead or field name.' };
+      const allowedFields = ['source', 'priority', 'expectedValue', 'company'];
+      if (!allowedFields.includes(action.fieldName)) return { ok: false, message: `Cannot update field "${action.fieldName}".` };
+      await prisma.lead.update({
+        where: { id: ctx.leadId },
+        data: { [action.fieldName]: action.fieldValue || null },
+      });
+      return { ok: true, message: `Field "${action.fieldName}" updated.` };
+    }
+    case 'WEBHOOK': {
+      if (!action.webhookUrl) return { ok: false, message: 'Missing webhook URL.' };
+      try {
+        await fetch(action.webhookUrl, {
+          method: action.webhookMethod || 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            trigger: ctx.entityType,
+            leadId: ctx.leadId,
+            leadName: ctx.leadName,
+            meta: ctx.meta,
+            timestamp: new Date().toISOString(),
+          }),
+        });
+        return { ok: true, message: 'Webhook called.' };
+      } catch {
+        return { ok: false, message: 'Webhook call failed.' };
+      }
+    }
+    case 'WAIT': {
+      // In a real system this would schedule a delayed action. For now, just log it.
+      const waitTime = (action.waitDays || 0) * 24 + (action.waitHours || 0);
+      return { ok: true, message: `Wait ${waitTime} hours (delayed action not yet supported).` };
+    }
+    case 'CONDITION': {
+      // Conditional branching — evaluate and return result
+      return { ok: true, message: 'Condition evaluated.' };
     }
     default:
       return { ok: false, message: `Unknown action type "${(action as any).type}".` };

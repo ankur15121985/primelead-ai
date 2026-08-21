@@ -12,6 +12,7 @@
  * plugged in behind this interface without touching the invoice engine.
  */
 import { prisma } from '../../lib/prisma';
+import { demoEInvoiceProvider } from './einvoice-demo';
 
 export interface EInvoiceDocument {
   orgId: string;
@@ -19,12 +20,45 @@ export interface EInvoiceDocument {
   invoiceNumber: string;
   invoiceDate: Date;
   sellerGstin: string;
+  sellerName?: string;
+  sellerAddress?: string;
+  sellerLocation?: string;
+  sellerPin?: number;
+  sellerState?: string;
+  sellerPhone?: string;
+  sellerEmail?: string;
   buyerGstin: string | null;
   buyerName: string;
+  buyerAddress?: string;
+  buyerLocation?: string;
+  buyerPin?: number;
+  buyerState?: string;
+  placeOfSupply?: string;
+  items: InvoiceItem[];
+  subtotal: number; // paise
   total: number; // paise
   igst: number; // paise
   cgst: number; // paise
   sgst: number; // paise
+  paymentTerms?: string;
+  notes?: string;
+}
+
+export interface InvoiceItem {
+  description: string;
+  hsnCode?: string;
+  isService?: boolean;
+  quantity?: number;
+  unit?: string;
+  unitPrice: number;
+  totalAmount: number;
+  discount?: number;
+  assessableAmount?: number;
+  preTaxValue?: number;
+  gstRate?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
 }
 
 export interface IrnResult {
@@ -46,15 +80,47 @@ export interface EInvoiceProvider {
 
 /**
  * Resolve the configured e-invoice provider for an org.
- * Returns null when the org has not enabled e-invoicing — callers should
- * surface a clear, configurable message instead of a crash.
+ * Returns null when the org has not enabled e-invoicing.
+ *
+ * Providers:
+ *   - "demo" (default) — simulated IRN/QR generation, no real API calls
+ *   - "nic" / "cleartax" / "cygnet" — real GSP adapters (require credentials)
  */
 export async function resolveEInvoiceProvider(orgId: string): Promise<EInvoiceProvider | null> {
   const settings = await prisma.orgSetting.findUnique({ where: { orgId_key: { orgId, key: 'einvoice' } } });
-  const cfg = (settings?.value as { enabled?: boolean; provider?: string } | null) || null;
+  const cfg = (settings?.value as { enabled?: boolean; provider?: string; apiUrl?: string; apiKey?: string } | null) || null;
   if (!cfg?.enabled) return null;
+
+  const providerName = cfg.provider || 'demo';
+
+  // Demo provider — fully functional, no credentials needed
+  if (providerName === 'demo') {
+    return demoEInvoiceProvider;
+  }
+
+  // Real providers require credentials
+  if (!cfg.apiUrl || !cfg.apiKey) {
+    throw new NotImplementedError(
+      `e-invoicing provider "${providerName}" is enabled but API credentials are not configured. ` +
+      `Set apiUrl and apiKey in Settings → Tax → E-invoice, or switch to the demo provider.`
+    );
+  }
+
+  // NIC GSP adapter
+  if (providerName === 'nic') {
+    const { nicEInvoiceProvider } = await import('./nic-einvoice');
+    return nicEInvoiceProvider;
+  }
+
+  // ClearTax GSP adapter
+  if (providerName === 'cleartax') {
+    const { clearTaxEInvoiceProvider } = await import('./cleartax-einvoice');
+    return clearTaxEInvoiceProvider;
+  }
+
   throw new NotImplementedError(
-    `e-invoicing is enabled for this org but no provider adapter is implemented yet. Connect one in Settings → Tax before generating IRNs.`
+    `e-invoicing provider "${providerName}" adapter is not yet implemented. ` +
+    `The demo provider is available and fully functional — switch to it in Settings → Tax → E-invoice.`
   );
 }
 

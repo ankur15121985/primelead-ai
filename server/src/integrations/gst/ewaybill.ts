@@ -8,6 +8,7 @@
  * NotImplementedError. Nothing here pretends to work.
  */
 import { prisma } from '../../lib/prisma';
+import { demoEWayBillProvider } from './ewaybill-demo';
 
 export interface EWayBillRequest {
   orgId: string;
@@ -44,12 +45,35 @@ export class NotImplementedError extends Error {
   }
 }
 
-/** Resolve the configured e-way bill provider for an org (null = not enabled). */
+/**
+ * Resolve the configured e-way bill provider for an org (null = not enabled).
+ *
+ * Providers:
+ *   - "demo" (default) — simulated EWB generation, no real API calls
+ *   - "nic" / "cleartax" — real EWB adapters (require credentials)
+ */
 export async function resolveEWayBillProvider(orgId: string): Promise<EWayBillProvider | null> {
   const settings = await prisma.orgSetting.findUnique({ where: { orgId_key: { orgId, key: 'ewaybill' } } });
-  const cfg = (settings?.value as { enabled?: boolean; provider?: string } | null) || null;
+  const cfg = (settings?.value as { enabled?: boolean; provider?: string; apiUrl?: string; apiKey?: string } | null) || null;
   if (!cfg?.enabled) return null;
+
+  const providerName = cfg.provider || 'demo';
+
+  // Demo provider — fully functional, no credentials needed
+  if (providerName === 'demo') {
+    return demoEWayBillProvider;
+  }
+
+  // Real providers require credentials
+  if (!cfg.apiUrl || !cfg.apiKey) {
+    throw new NotImplementedError(
+      `e-way bill provider "${providerName}" is enabled but API credentials are not configured. ` +
+      `Set apiUrl and apiKey in Settings → Tax → E-way bill, or switch to the demo provider.`
+    );
+  }
+
   throw new NotImplementedError(
-    `e-way bills are enabled for this org but no provider adapter is implemented yet. Connect one in Settings → Tax before generating EWBs.`
+    `e-way bill provider "${providerName}" adapter is not yet implemented. ` +
+    `The demo provider is available and fully functional — switch to it in Settings → Tax → E-way bill.`
   );
 }

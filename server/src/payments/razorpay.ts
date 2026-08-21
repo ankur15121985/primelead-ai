@@ -79,9 +79,28 @@ export const razorpayProvider: PaymentProvider = {
   },
 
   async refund(input: RefundInput): Promise<RefundResult> {
-    // IMPLEMENTATION REQUIRED — Razorpay Refunds API (POST /v1/payments/:id/refund)
-    // is documented but has not been exercised against real keys.
-    throw new Error('Razorpay refunds are not implemented yet (IMPLEMENTATION REQUIRED).');
+    if (!razorpayProvider.configured) {
+      throw new Error('Razorpay is not configured — cannot process refund.');
+    }
+    if (!input.providerPaymentId) {
+      throw new Error('Razorpay refund requires the provider payment ID (providerPaymentId).');
+    }
+    // POST /v1/payments/:payment_id/refund
+    const res = await providerPost(`${API}/payments/${input.providerPaymentId}/refund`, {
+      auth: { username: config.payments.razorpayKeyId, password: config.payments.razorpayKeySecret },
+      body: {
+        amount: input.amountPaise,
+        notes: {
+          paymentId: input.paymentId,
+          reason: input.reason || 'Refund requested',
+        },
+      },
+    });
+    if (!res.ok) {
+      const msg = res.json?.error?.description || `HTTP ${res.status}`;
+      throw new Error(`Razorpay refund failed: ${msg}`);
+    }
+    return { providerRefundId: res.json?.id || undefined };
   },
 
   verifyAndParse(headers: Record<string, string | string[] | undefined>, rawBody: Buffer): VerifyResult {

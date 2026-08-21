@@ -1,0 +1,703 @@
+openapi: 3.0.3
+info:
+  title: PRIMELEAD AI API
+  description: |
+    AI-powered CRM & lead management API for Indian businesses.
+    
+    ## Authentication
+    All requests require a session cookie (`pl_session`) or API key in the `Authorization` header.
+    
+    ## Multi-tenancy
+    All data is scoped to your organization. The `orgId` is resolved from your session.
+    
+    ## Money
+    All monetary values are in **Indian Rupees (₹)**. The database stores paise (integer), but the API boundary converts to rupees.
+  version: "1.0.0"
+  contact:
+    name: PRIMELEAD AI Support
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:4000
+    description: Development server
+  - url: https://api.primelead.ai
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Authentication & session management
+  - name: Leads
+    description: Lead management & CRUD
+  - name: Pipeline
+    description: Sales pipeline & stages
+  - name: Contacts
+    description: Contact directory
+  - name: Quotations
+    description: GST quotations
+  - name: Invoices
+    description: GST invoices & payments
+  - name: Dashboard
+    description: Dashboard statistics
+  - name: Reports
+    description: Analytics & reports
+  - name: AI
+    description: AI features (follow-up writer, assistant)
+  - name: Integrations
+    description: Third-party integrations
+  - name: WhatsApp
+    description: WhatsApp inbox & messaging
+  - name: Billing
+    description: Subscriptions & payments
+  - name: Settings
+    description: Organization settings
+  - name: Team
+    description: Team & user management
+  - name: Admin
+    description: Super-admin operations
+  - name: Scheduled Messages
+    description: Message queue & scheduling
+  - name: GST
+    description: E-invoice & E-way bill
+
+paths:
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Create organization & owner account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: Account created, session set
+        '409':
+          description: Email already exists
+        '422':
+          description: Validation error
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in with email & password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Logged in (or MFA challenge required)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      mfaRequired:
+                        type: boolean
+                        example: false
+                      user:
+                        $ref: '#/components/schemas/User'
+                  - type: object
+                    properties:
+                      mfaRequired:
+                        type: boolean
+                        example: true
+                      challengeToken:
+                        type: string
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Rate limited
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user & organization
+      security:
+        - session: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Current user with org, permissions, MFA status
+        '401':
+          description: Not authenticated
+
+  /api/leads:
+    get:
+      tags: [Leads]
+      summary: List leads with search, filter, sort, pagination
+      security:
+        - session: []
+        - apiKey: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [NEW, CONTACTED, QUALIFIED, PROPOSAL, NEGOTIATION, WON, LOST, UNQUALIFIED]
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: ownerId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [name, email, createdAt, value, score]
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Paginated leads list
+
+    post:
+      tags: [Leads]
+      summary: Create a new lead
+      security:
+        - session: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeadInput'
+      responses:
+        '201':
+          description: Lead created
+        '409':
+          description: Duplicate detected
+
+  /api/leads/{id}:
+    get:
+      tags: [Leads]
+      summary: Get lead detail with timeline
+      security:
+        - session: []
+        - apiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lead detail with activities, tasks, timeline
+        '404':
+          description: Lead not found
+
+    patch:
+      tags: [Leads]
+      summary: Update lead (stage, owner, status, etc.)
+      security:
+        - session: []
+        - apiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+                status:
+                  type: string
+                stageId:
+                  type: string
+                ownerId:
+                  type: string
+                value:
+                  type: number
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Lead updated
+        '400':
+          description: Validation error
+
+  /api/pipeline:
+    get:
+      tags: [Pipeline]
+      summary: Get Kanban board (stages + leads)
+      security:
+        - session: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Pipeline stages with leads
+
+  /api/contacts:
+    get:
+      tags: [Contacts]
+      summary: List contacts with search
+      security:
+        - session: []
+        - apiKey: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contacts list
+
+  /api/quotations:
+    get:
+      tags: [Quotations]
+      summary: List quotations with status counts
+      security:
+        - session: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Quotations list with counts
+
+    post:
+      tags: [Quotations]
+      summary: Create quotation with GST auto-calculation
+      security:
+        - session: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuotationInput'
+      responses:
+        '201':
+          description: Quotation created
+
+  /api/invoices:
+    get:
+      tags: [Invoices]
+      summary: List invoices with counts & total value
+      security:
+        - session: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Invoices list
+
+    post:
+      tags: [Invoices]
+      summary: Create invoice with GST
+      security:
+        - session: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvoiceInput'
+      responses:
+        '201':
+          description: Invoice created
+
+  /api/invoices/{id}/payment:
+    post:
+      tags: [Invoices]
+      summary: Record payment against invoice
+      security:
+        - session: []
+        - apiKey: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  description: Payment amount in rupees
+                method:
+                  type: string
+                  enum: [CASH, UPI, BANK_TRANSFER, CARD, CHEQUE]
+                reference:
+                  type: string
+                  description: Transaction reference
+      responses:
+        '200':
+          description: Payment recorded
+
+  /api/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard statistics & charts
+      security:
+        - session: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Dashboard stats, funnel, trends
+
+  /api/reports:
+    get:
+      tags: [Reports]
+      summary: Get analytics reports
+      security:
+        - session: []
+        - apiKey: []
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Aggregated analytics
+
+  /api/ai/chat:
+    post:
+      tags: [AI]
+      summary: Ask AI assistant a question
+      security:
+        - session: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                conversationId:
+                  type: string
+                  format: uuid
+                  description: Continue existing conversation
+      responses:
+        '200':
+          description: AI response
+        '503':
+          description: AI not configured
+
+  /api/ai/follow-up:
+    post:
+      tags: [AI]
+      summary: Generate AI follow-up message
+      security:
+        - session: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leadId, tone]
+              properties:
+                leadId:
+                  type: string
+                  format: uuid
+                tone:
+                  type: string
+                  enum: [professional, friendly, urgent, casual]
+                language:
+                  type: string
+                  enum: [english, hindi, hinglish]
+                  default: english
+      responses:
+        '200':
+          description: Generated follow-up text
+
+  /api/whatsapp/inbox:
+    get:
+      tags: [WhatsApp]
+      summary: Get WhatsApp inbox messages
+      security:
+        - session: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Messages grouped by phone number
+
+  /api/whatsapp/send:
+    post:
+      tags: [WhatsApp]
+      summary: Send WhatsApp text message
+      security:
+        - session: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [to, message]
+              properties:
+                to:
+                  type: string
+                  description: Phone number with country code
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Message sent
+        '503':
+          description: WhatsApp not configured
+
+  /api/billing:
+    get:
+      tags: [Billing]
+      summary: Get subscription, plan, usage & limits
+      security:
+        - session: []
+        - apiKey: []
+      responses:
+        '200':
+          description: Billing details
+
+  /api/scheduled-messages:
+    get:
+      tags: [Scheduled Messages]
+      summary: List scheduled messages
+      security:
+        - session: []
+        - apiKey: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, PROCESSING, SENT, FAILED, CANCELLED]
+        - name: channel
+          in: query
+          schema:
+            type: string
+            enum: [whatsapp, email]
+      responses:
+        '200':
+          description: Scheduled messages list
+
+    post:
+      tags: [Scheduled Messages]
+      summary: Schedule a message
+      security:
+        - session: []
+        - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, recipient, content]
+              properties:
+                channel:
+                  type: string
+                  enum: [whatsapp, email]
+                recipient:
+                  type: string
+                  description: Phone number or email
+                content:
+                  type: object
+                  properties:
+                    text:
+                      type: string
+                    subject:
+                      type: string
+                scheduledFor:
+                  type: string
+                  format: date-time
+                  description: When to send (defaults to now)
+                leadId:
+                  type: string
+                  format: uuid
+                priority:
+                  type: integer
+                  minimum: 0
+                  maximum: 10
+                  default: 5
+      responses:
+        '201':
+          description: Message scheduled
+
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        orgId:
+          type: string
+          format: uuid
+
+    LeadInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        company:
+          type: string
+        source:
+          type: string
+        value:
+          type: number
+          description: Lead value in rupees
+        notes:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+
+    QuotationInput:
+      type: object
+      required: [leadId, items]
+      properties:
+        leadId:
+          type: string
+          format: uuid
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentItem'
+        notes:
+          type: string
+        validUntil:
+          type: string
+          format: date
+
+    InvoiceInput:
+      type: object
+      required: [leadId, items]
+      properties:
+        leadId:
+          type: string
+          format: uuid
+        quotationId:
+          type: string
+          format: uuid
+          description: Convert from quotation
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentItem'
+        notes:
+          type: string
+        dueDate:
+          type: string
+          format: date
+
+    DocumentItem:
+      type: object
+      required: [description, amount]
+      properties:
+        description:
+          type: string
+        hsnCode:
+          type: string
+        quantity:
+          type: number
+          default: 1
+        unit:
+          type: string
+          default: NOS
+        amount:
+          type: number
+          description: Unit price in rupees
+        gstRate:
+          type: number
+          description: GST rate percentage (default: 18)
+
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: pl_session
+      description: Session cookie (httpOnly, SameSite=Lax)
+    apiKey:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "API key: Bearer <key>"

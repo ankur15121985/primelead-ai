@@ -3,9 +3,13 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, KanbanSquare, ListChecks, Shield, Settings, LogOut, Search, Menu, X, QrCode, ShieldCheck,
   CalendarDays, BookUser, FileText, Receipt, BarChart3, Bot, Plug, CreditCard, MessageSquare, Workflow,
+  Phone, Mail, Building2, FlaskConical, Target, Zap, PieChart, GraduationCap, TrendingUp, Map, Key, Webhook,
+  Upload, GitMerge, Database, Wrench, Globe, Route, FileInput, UserCheck, Brain, Activity, LayoutList, ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { NotificationsBell } from './NotificationsBell';
+import { CommandPalette } from '@/components/CommandPalette';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Avatar } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownItem, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown-menu';
 import { ROLE_LABEL } from '@/lib/constants';
@@ -24,15 +28,52 @@ const NAV = [
 const SELL_NAV = [
   { to: '/app/quotations', label: 'Quotations', icon: FileText },
   { to: '/app/invoices', label: 'Invoices', icon: Receipt },
-  { to: '/app/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/app/calls', label: 'Calls', icon: Phone },
+  { to: '/app/meetings', label: 'Meetings', icon: CalendarDays },
+  { to: '/app/sequences', label: 'Sequences', icon: Mail },
   { to: '/app/ai', label: 'AI Assistant', icon: Bot },
+];
+
+const INTEL_NAV = [
+  { to: '/app/companies', label: 'Companies', icon: Building2 },
+  { to: '/app/search', label: 'Search', icon: Search },
+  { to: '/app/icps', label: 'ICPs', icon: Target },
+  { to: '/app/personas', label: 'Personas', icon: UserCheck },
+  { to: '/app/scoring', label: 'Scoring', icon: PieChart },
+  { to: '/app/signals', label: 'Signals', icon: Zap },
+  { to: '/app/intelligence', label: 'Intelligence', icon: Brain },
+  { to: '/app/ai-research', label: 'AI Research', icon: FlaskConical },
+];
+
+const ANALYTICS_NAV = [
+  { to: '/app/reports', label: 'Reports', icon: BarChart3 },
+  { to: '/app/analytics-v2', label: 'Analytics', icon: Activity },
+  { to: '/app/report-builder', label: 'Report Builder', icon: LayoutList },
+  { to: '/app/coaching', label: 'Coaching', icon: GraduationCap },
+  { to: '/app/forecast', label: 'Forecasting', icon: TrendingUp },
 ];
 
 const GROW_NAV = [
   { to: '/app/qr-codes', label: 'QR Codes', icon: QrCode },
   { to: '/app/integrations', label: 'Integrations', icon: Plug },
-  { to: '/app/automations', label: 'Automations', icon: Workflow },
+  { to: '/app/forms', label: 'Forms', icon: FileInput },
+  { to: '/app/inbound', label: 'Inbound Routing', icon: Route },
+  { to: '/app/workflows', label: 'Workflows', icon: Workflow },
+  { to: '/app/import', label: 'Import', icon: Upload },
+  { to: '/app/deliverability', label: 'Deliverability', icon: Globe },
+  { to: '/app/data-providers', label: 'Data Providers', icon: Database },
+];
+
+const ADMIN_NAV = [
   { to: '/app/team', label: 'Team', icon: Shield },
+  { to: '/app/territories', label: 'Territories', icon: Map },
+  { to: '/app/automations', label: 'Automations', icon: Wrench },
+  { to: '/app/data-quality', label: 'Data Quality', icon: Database },
+  { to: '/app/duplicates', label: 'Duplicates', icon: GitMerge },
+  { to: '/app/compliance', label: 'Compliance', icon: ShieldAlert },
+  { to: '/app/security', label: 'Security', icon: ShieldCheck },
+  { to: '/app/api-keys', label: 'API Keys', icon: Key },
+  { to: '/app/webhooks-platform', label: 'Webhooks', icon: Webhook },
   { to: '/app/billing', label: 'Billing', icon: CreditCard },
   { to: '/app/settings', label: 'Settings', icon: Settings },
 ];
@@ -77,13 +118,21 @@ export function AppLayout() {
       {renderNav(NAV, 'main')}
       {sectionLabel('Sell')}
       {renderNav(SELL_NAV, 'sell')}
+      {sectionLabel('Intelligence')}
+      {renderNav(INTEL_NAV, 'intel')}
+      {sectionLabel('Analytics')}
+      {renderNav(ANALYTICS_NAV, 'analytics')}
       {sectionLabel('Grow')}
       {renderNav(GROW_NAV, 'grow')}
+      {sectionLabel('Admin')}
+      {renderNav(ADMIN_NAV, 'admin')}
     </>
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-50/60">
+    <>
+    <CommandPalette />
+    <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-background lg:flex">
         <div className="flex h-16 items-center border-b px-5">
@@ -152,20 +201,13 @@ export function AppLayout() {
           <button className="rounded-lg p-2 text-muted-foreground lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
-          <div className="hidden items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm text-muted-foreground md:flex md:w-72">
+          <div className="hidden items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-sm text-muted-foreground md:flex md:w-72 cursor-pointer" onClick={() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true })); }}>
             <Search className="h-4 w-4" />
-            <input
-              className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
-              placeholder="Search leads…"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const q = (e.target as HTMLInputElement).value.trim();
-                  navigate(q ? `/app/leads?search=${encodeURIComponent(q)}` : '/app/leads');
-                }
-              }}
-            />
+            <span className="flex-1">Search…</span>
+            <kbd className="rounded border bg-background px-1.5 py-0.5 text-[10px] font-medium">⌘K</kbd>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
+            <ThemeToggle />
             <NotificationsBell />
             <button
               className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
@@ -189,7 +231,7 @@ export function AppLayout() {
               NAV[1], // Leads
               NAV[2], // Inbox
               SELL_NAV[0], // Quotations
-              SELL_NAV[3], // AI Assistant
+              SELL_NAV[5], // AI Assistant
             ].map((item) => (
               <NavLink
                 key={item.to}
@@ -209,5 +251,6 @@ export function AppLayout() {
         </nav>
       </div>
     </div>
+    </>
   );
 }
