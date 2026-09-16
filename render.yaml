@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && npm run build -w server && npx prisma generate --schema server/prisma/schema.prisma && npm run build -w client
+    buildCommand: npm install && npx prisma generate --schema server/prisma/schema.prisma && npm run build -w server && cd client && npx vite build
     startCommand: cd server && npx prisma migrate deploy && npx tsx prisma/seed.ts && npx tsx src/index.ts
     healthCheckPath: /api/health
     envVars:
