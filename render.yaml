@@ -4,12 +4,12 @@ services:
     runtime: node
     plan: free
     region: singapore
-    buildCommand: npm install && npx prisma generate --schema server/prisma/schema.prisma && npm run build -w server && cd client && npx vite build
+    buildCommand: npm install --include=dev && npx prisma generate --schema server/prisma/schema.prisma && npm run build -w server && cd client && npx vite build
     startCommand: cd server && npx prisma migrate deploy && npx tsx prisma/seed.ts && npx tsx src/index.ts
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: "20"
+        value: "22"
       - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
         value: "1"
       - key: NODE_ENV
