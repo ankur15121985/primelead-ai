@@ -126,28 +126,29 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
   res.on('finish', () => {
     const duration = Date.now() - start;
     const method = req.method;
-    const path = req.route?.path || req.path;
+    const rawPath = (typeof req.route?.path === 'string' ? req.route.path : '') || req.path || '';
+    const path = normalizePath(String(rawPath));
     const status = res.statusCode;
     const statusClass = `${Math.floor(status / 100)}xx`;
 
     // Request counter
     metrics.incrementCounter('primelead_http_requests_total', {
       method,
-      path: normalizePath(path),
+      path,
       status: statusClass,
     });
 
     // Response time histogram
     metrics.observeHistogram('primelead_http_request_duration_ms', duration, {
       method,
-      path: normalizePath(path),
+      path,
     });
 
     // Error counter
     if (status >= 400) {
       metrics.incrementCounter('primelead_http_errors_total', {
         method,
-        path: normalizePath(path),
+        path,
         status: statusClass,
       });
     }
@@ -158,11 +159,16 @@ export function metricsMiddleware(req: Request, res: Response, next: NextFunctio
 
 // Normalize dynamic path segments to avoid high cardinality
 function normalizePath(path: string): string {
-  return path
-    .replace(/\/[0-9a-f]{24}/g, '/:id')      // MongoDB-style IDs
-    .replace(/\/\d+/g, '/:id')                 // Numeric IDs
-    .replace(/\/[a-f0-9-]{36}/g, '/:id')       // UUIDs
-    .replace(/\/[a-zA-Z0-9_-]{20,}/g, '/:slug'); // Long slugs
+  if (!path || typeof path !== 'string') return '/unknown';
+  try {
+    return path
+      .replace(/\/[0-9a-f]{24}/g, '/:id')      // MongoDB-style IDs
+      .replace(/\/\d+/g, '/:id')                 // Numeric IDs
+      .replace(/\/[a-f0-9-]{36}/g, '/:id')       // UUIDs
+      .replace(/\/[a-zA-Z0-9_-]{20,}/g, '/:slug'); // Long slugs
+  } catch {
+    return '/unknown';
+  }
 }
 
 // ── Business Metrics (periodic updater) ─────────────────────────────
