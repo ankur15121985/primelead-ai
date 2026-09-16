@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "https://racks-filled-britain-soviet.trycloudflare.com/$1"
+      "destination": "https://primelead-ai-demo.onrender.com/$1"
     }
   ]
 }
