@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: primelead-ai-demo
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build -w server && npx prisma generate --schema server/prisma/schema.prisma && npm run build -w client
+    startCommand: cd server && npx prisma migrate deploy && npx tsx prisma/seed.ts && npx tsx src/index.ts
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD
+        value: "1"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        value: file:./dev.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PAYMENT_WEBHOOK_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
